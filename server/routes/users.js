@@ -314,4 +314,107 @@ router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
   }
 });
 
+// Get own profile - Authenticated user
+router.get('/profile', requireAuth, async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const userId = req.session.userId;
+
+    const { data: userProfile, error } = await supabase
+      .from('users')
+      .select('username, full_name, role, last_login, created_at, is_active')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!userProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        username: userProfile.username,
+        full_name: userProfile.full_name || '',
+        role: userProfile.role,
+        last_login: userProfile.last_login,
+        created_at: userProfile.created_at,
+        is_active: userProfile.is_active
+      }
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch profile'
+    });
+  }
+});
+
+// Update own profile - Authenticated user
+router.put('/profile', requireAuth, async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const userId = req.session.userId;
+    const { full_name } = req.body;
+
+    // Get current user data
+    const { data: existingUser, error: getError } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', userId)
+      .single();
+
+    if (getError) {
+      throw getError;
+    }
+
+    // Update user profile (only full_name for now)
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update({ full_name })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // Log the activity
+    await supabase
+      .from('activity_logs')
+      .insert([{
+        user_id: userId,
+        action: 'UPDATE_PROFILE',
+        table_name: 'users',
+        record_id: userId,
+        old_values: JSON.stringify({ full_name: existingUser.full_name }),
+        new_values: JSON.stringify({ full_name }),
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent')
+      }]);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        full_name: updatedUser.full_name
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update profile'
+    });
+  }
+});
+
 module.exports = router;

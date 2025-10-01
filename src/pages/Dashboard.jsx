@@ -53,41 +53,41 @@ const Dashboard = () => {
         // Fetch products detail from API
         const response = await api.get('/products/detail');
         if (response.data.success) {
-          const products = response.data.data;
+          // Filter out TERJUAL products from all calculations since they're sold and not in inventory
+          const activeProducts = response.data.data.filter(product => product.status !== 'TERJUAL');
 
-          // Calculate statistics
+          // Calculate statistics from active (non-sold) products only
           let totalProducts = 0;
           let inStore = 0;
           let lowStock = 0;
           let criticalStock = 0;
           let sold = 0;
 
-          products.forEach(product => {
+          // Count sold products (TERJUAL status) for reference
+          const soldProducts = response.data.data.filter(product => product.status === 'TERJUAL');
+          soldProducts.forEach(product => {
+            sold += product.count || 0;
+          });
+
+          // Calculate active inventory stats
+          activeProducts.forEach(product => {
             const count = product.count || 0;
+            const tokoCount = product.items?.filter(item => item.status === 'TOKO').length || 0;
 
-            // Total products excluding sold items
-            if (product.status !== 'TERJUAL') {
-              totalProducts += count;
+            // Total active inventory count (all items not TERJUAL)
+            totalProducts += count;
+
+            // Items currently in store (TOKO status)
+            inStore += tokoCount;
+
+            // Low stock products (count <= 5)
+            if (count <= 5) {
+              lowStock += 1;
             }
 
-            // In store products
-            if (product.status === 'TOKO') {
-              inStore += count;
-            }
-
-            // Low stock (count <= 5)
-            if (count <= 5 && product.status !== 'TERJUAL') {
-              lowStock += 1; // Count products, not individual items
-            }
-
-            // Critical stock (count <= 3)
-            if (count <= 3 && product.status !== 'TERJUAL') {
-              criticalStock += 1; // Count products, not individual items
-            }
-
-            // Sold products
-            if (product.status === 'TERJUAL') {
-              sold += count;
+            // Critical stock products (count <= 3)
+            if (count <= 3) {
+              criticalStock += 1;
             }
           });
 

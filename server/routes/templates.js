@@ -32,7 +32,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 });
 
 // Get product templates with no registered products (empty stock)
-router.get('/empty-stock', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/empty-stock', requireAuth, async (req, res) => {
   try {
     const supabase = getSupabaseClient();
 

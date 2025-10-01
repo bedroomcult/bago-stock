@@ -4,13 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [profile, setProfile] = useState({
     username: '',
     full_name: '',
     role: '',
-    email: '',
-    phone: '',
     last_login: ''
   });
   const [loading, setLoading] = useState(true);
@@ -19,19 +17,44 @@ const Profile = () => {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // In a real implementation, this would fetch user profile from the API
-    // For now, using mock data based on the authenticated user
+    const fetchProfile = async () => {
+      try {
+        // Fetch complete profile from database
+        const response = await api.get('/users/profile');
+
+        if (response.data.success) {
+          const profileData = response.data.data;
+          setProfile({
+            username: profileData.username || '',
+            full_name: profileData.full_name || '',
+            role: profileData.role || '',
+            last_login: profileData.last_login ? new Date(profileData.last_login).toLocaleString('id-ID') : 'N/A'
+          });
+        } else {
+          throw new Error(response.data.message || 'Failed to fetch profile');
+        }
+      } catch (error) {
+        console.error('Fetch profile error:', error);
+        // Fallback to auth context if API call fails
+        if (user) {
+          setProfile({
+            username: user.username || '',
+            full_name: user.fullName || user.full_name || '',
+            role: user.role || '',
+            last_login: user.last_login ? new Date(user.last_login).toLocaleString('id-ID') : 'N/A'
+          });
+        }
+        setErrorMessage('Gagal memuat profile. Menampilkan data cache.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (user) {
-      setProfile({
-        username: user.username || '',
-        full_name: user.full_name || user.username || '',
-        role: user.role || '',
-        email: '', // Not in the original schema, so leaving empty
-        phone: '', // Not in the original schema, so leaving empty
-        last_login: user.last_login || 'N/A'
-      });
+      fetchProfile();
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, [user]);
 
   const handleSubmit = async (e) => {
@@ -41,14 +64,23 @@ const Profile = () => {
     setErrorMessage('');
 
     try {
-      // In a real implementation, this would update via the API
-      // await api.put('/users/' + user.id, profile);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setSuccessMessage('Profil berhasil diperbarui');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      // Update profile via API (only full_name is updatable)
+      const response = await api.put('/users/profile', {
+        full_name: profile.full_name
+      });
+
+      if (response.data.success) {
+        // Update auth context with new full_name
+        updateUser({
+          ...user,
+          full_name: response.data.data.full_name
+        });
+
+        setSuccessMessage('Profil berhasil diperbarui');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        throw new Error(response.data.message || 'Update failed');
+      }
     } catch (error) {
       setErrorMessage('Terjadi kesalahan saat menyimpan profil');
       console.error('Profile update error:', error);
@@ -150,32 +182,6 @@ const Profile = () => {
                 id="full_name"
                 value={profile.full_name}
                 onChange={(e) => handleInputChange('full_name', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={profile.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                No. Telepon
-              </label>
-              <input
-                type="tel"
-                id="phone"
-                value={profile.phone}
-                onChange={(e) => handleInputChange('phone', e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
             </div>

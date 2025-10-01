@@ -14,6 +14,7 @@ const Navbar = () => {
         // Core Operations
         { name: 'Dashboard', path: '/', icon: '🏠', group: 'main' },
         { name: 'Single Scan', path: '/single-scan', icon: '📱', group: 'main' },
+        { name: 'Quick Scan', path: '/quick-scan', icon: '🔍', group: 'main' },
 
         // Inventory Management
         { name: 'Detail Stok', path: '/detail-stok', icon: '📊', group: 'inventory' },
@@ -36,6 +37,8 @@ const Navbar = () => {
     : [
         { name: 'Dashboard', path: '/', icon: '🏠' },
         { name: 'Single Scan', path: '/single-scan', icon: '📱' },
+        { name: 'Quick Scan', path: '/quick-scan', icon: '🔍' },
+        { name: 'Detail Stok', path: '/detail-stok', icon: '📊' },
         { name: 'Aktivitas Saya', path: '/my-activity', icon: '📝' },
         { name: 'Profil', path: '/profile', icon: '👤' },
       ];
@@ -133,47 +136,78 @@ const Navbar = () => {
 
       {/* Mobile Menu Overlay */}
       {isMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-25" onClick={() => setIsMenuOpen(false)} />
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-50 backdrop-blur-sm"
+          onClick={() => setIsMenuOpen(false)}
+        />
       )}
 
       {/* Mobile Menu Panel */}
       <div
         ref={menuRef}
-        className={`md:hidden fixed top-16 left-0 right-0 bg-white shadow-lg border-t z-50 transform transition-transform duration-200 ease-in-out ${
-          isMenuOpen ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+        className={`md:hidden fixed top-16 left-0 right-0 bg-white shadow-xl border-t border-gray-200 z-50 transform transition-all duration-300 ease-out ${
+          isMenuOpen
+            ? 'translate-y-0 opacity-100 scale-100'
+            : '-translate-y-2 opacity-0 scale-98 pointer-events-none'
         }`}
+        style={{ maxHeight: isMenuOpen ? 'calc(100vh - 4rem)' : '0px' }}
       >
-        <div className="px-4 py-2">
-          <div className="flex items-center px-3 py-2 border-b border-gray-200">
-            <span className="text-sm font-medium text-gray-500">User:</span>
-            <span className="ml-2 text-sm text-gray-900">{user?.username} ({user?.role})</span>
+        <div className="overflow-y-auto h-full">
+          {/* Mobile Header - Always Compact */}
+          <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                <span className="text-xs font-medium text-gray-600 truncate">
+                  {user?.fullName || user?.username}
+                </span>
+                <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full">
+                  {user?.role === 'admin' ? 'Admin' : 'Staff'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-0.5 bg-gray-300 rounded-full"></div>
+                {/* Close Button */}
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
+                  aria-label="Close menu"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="py-2">
-            {navItems.map((item) => (
+          <div className="px-2 py-1">
+            {navItems.map((item, index) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-3 py-3 text-base font-medium rounded-md transition-colors ${
+                className={`flex items-center px-2 py-2 text-xs font-medium rounded-md transition-all duration-150 active:scale-95 ${
                   location.pathname === item.path
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
                 }`}
                 onClick={() => setIsMenuOpen(false)}
+                style={{ minHeight: '36px' }} // Ultra-compact touch target
               >
-                <span className="text-lg mr-3">{item.icon}</span>
-                {item.name}
+                <span className="text-base mr-2 w-4 text-center flex items-center justify-center">{item.icon}</span>
+                <span className="flex-1 truncate">{item.name}</span>
+                {location.pathname === item.path && (
+                  <span className="text-blue-600 text-xs">●</span>
+                )}
               </Link>
             ))}
           </div>
 
-          <div className="border-t border-gray-200 pt-2">
+          <div className="border-t border-gray-200 mt-1 pt-2">
             <button
               onClick={handleLogout}
-              className="flex items-center w-full px-3 py-3 text-base font-medium text-red-700 hover:bg-red-50 rounded-md transition-colors"
+              className="flex items-center w-full px-2 py-2 text-xs font-medium text-red-700 hover:bg-red-50 active:bg-red-100 rounded-md transition-all duration-150 active:scale-95 mx-2"
+              style={{ minHeight: '36px' }} // Ultra-compact touch target
             >
-              <span className="text-lg mr-3">🚪</span>
-              Keluar
+              <span className="text-base mr-2 w-4 text-center flex items-center justify-center">🚪</span>
+              <span className="flex-1 truncate">Keluar</span>
             </button>
           </div>
         </div>

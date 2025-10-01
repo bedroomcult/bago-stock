@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import SingleScan from './pages/SingleScan';
-// import QuickScan from './pages/QuickScan';
+import QuickScan from './pages/QuickScan';
 import DetailStok from './pages/DetailStok';
 import QrGeneration from './pages/QrGeneration';
 import TemplateManagement from './pages/TemplateManagement';
@@ -55,6 +55,7 @@ function AppContent() {
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/single-scan" element={<SingleScan />} />
+                    <Route path="/quick-scan" element={<QuickScan />} />
                     <Route path="/detail-stok" element={<DetailStok />} />
                     <Route path="/qr-generation" element={user.role === 'admin' ? <QrGeneration /> : <Navigate to="/" />} />
                     <Route path="/template-management" element={user.role === 'admin' ? <TemplateManagement /> : <Navigate to="/" />} />

@@ -105,9 +105,10 @@ const DetailStok = () => {
       const response = await api.get('/products/detail');
       if (response.data.success) {
         console.log('📊 Product details loaded:', response.data.data);
-        const products = response.data.data;
-        setAllProducts(products);
-        setFilteredProducts(products);
+        // Exclude TERJUAL products from inventory since they're sold
+        const activeProducts = response.data.data.filter(product => product.status !== 'TERJUAL');
+        setAllProducts(activeProducts);
+        setFilteredProducts(activeProducts);
         setProductCounts([]); // Clear old format since we're using new structure
       } else {
         console.error('❌ Failed to fetch products:', response.data.message);
@@ -148,7 +149,7 @@ const DetailStok = () => {
     if (searchTerm) {
       filtered = filtered.filter(product =>
         product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.uuid.toLowerCase().includes(searchTerm.toLowerCase())
+        product.qr_code.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -370,7 +371,7 @@ const DetailStok = () => {
                             </div>
                           </div>
                           <p className="text-xs text-gray-500">
-                            QR: <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-xs">{product.uuid}</span>
+                            QR: <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-xs">{product.qr_code}</span>
                           </p>
                         </div>
 
@@ -475,14 +476,11 @@ const DetailStok = () => {
 
                           {/* Action Buttons */}
                           <div className="flex space-x-2">
-                            <button 
+                            <button
                               onClick={() => handleRegisterEmptyTemplate(template)}
-                              className="flex-1 bg-green-50 text-green-700 px-3 py-2 rounded-md text-xs font-medium hover:bg-green-100 transition-colors"
+                              className="w-full bg-green-50 text-green-700 px-3 py-2 rounded-md text-xs font-medium hover:bg-green-100 transition-colors"
                             >
                               ➕ Daftarkan
-                            </button>
-                            <button className="flex-1 bg-blue-50 text-blue-700 px-3 py-2 rounded-md text-xs font-medium hover:bg-blue-100 transition-colors">
-                              📊 Detail
                             </button>
                           </div>
                         </div>
@@ -518,13 +516,13 @@ const DetailStok = () => {
                     <h3 className="text-lg font-medium text-gray-900">
                       Detail Stok: {selectedProductDetail.product_name}
                     </h3>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1">
                       <div
-                        className="w-8 h-8 rounded border"
+                        className="w-4 h-4 rounded border flex-shrink-0"
                         style={{ backgroundColor: selectedProductDetail.color || '#3B82F6' }}
                         title={`Warna: ${selectedProductDetail.color || '#3B82F6'}`}
                       />
-                      <span className="text-sm text-gray-600">
+                      <span className="text-xs text-gray-600">
                         {selectedProductDetail.color || '#3B82F6'}
                       </span>
                     </div>
@@ -564,7 +562,7 @@ const DetailStok = () => {
                   <h4 className="text-md font-medium text-gray-900 mb-3">Distribusi Stok Berdasarkan Lokasi/Status</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(
-                      selectedProductDetail.items?.reduce((acc, item) => {
+                      selectedProductDetail.items?.filter(item => item && item.status).reduce((acc, item) => {
                         acc[item.status] = (acc[item.status] || 0) + 1;
                         return acc;
                       }, {}) || {}
@@ -589,12 +587,78 @@ const DetailStok = () => {
                   </div>
                 </div>
 
+                {/* Stock Distribution by Color */}
+                <div className="mb-6">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Stok Berdasarkan Warna</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {(() => {
+                      let colors = [];
+                      try {
+                        const colorString = selectedProductDetail.color;
+                        if (colorString && colorString.trim()) {
+                          // Try to parse as JSON array
+                          if (typeof colorString === 'string' && colorString.startsWith('[')) {
+                            colors = JSON.parse(colorString);
+                            // Validate that we got an array of color objects
+                            if (!Array.isArray(colors) || colors.length === 0) {
+                              colors = [{ hex: '#3B82F6', name: 'Default' }];
+                            }
+                          } else {
+                            // If it's a simple string, treat as single color
+                            colors = [{ hex: colorString, name: colorString }];
+                          }
+                        } else {
+                          colors = [{ hex: '#3B82F6', name: 'Default' }];
+                        }
+                      } catch (error) {
+                        // Fallback for parsing errors
+                        colors = [{ hex: '#3B82F6', name: 'Default' }];
+                        console.warn('Failed to parse color data:', selectedProductDetail.color, error);
+                      }
+
+                      // Distribute total stock evenly across colors (since we don't have per-color stock data)
+                      const totalStock = selectedProductDetail.count || 0;
+                      const stockPerColor = Math.floor(totalStock / colors.length);
+                      const remainder = totalStock % colors.length;
+
+                      return colors.map((color, index) => {
+                        const stock = stockPerColor + (index < remainder ? 1 : 0);
+                        const percentage = totalStock > 0 ? (stock / totalStock * 100).toFixed(1) : '0.0';
+
+                        return (
+                          <div key={`${color.hex || index}`} className="bg-white border rounded-lg p-4">
+                            <div className="flex items-center space-x-3">
+                              <div
+                                className="w-8 h-8 rounded border flex-shrink-0"
+                                style={{ backgroundColor: color.hex }}
+                                title={color.hex}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-900 truncate">
+                                  {color.name || `Color ${index + 1}`}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {color.hex}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold text-gray-900">{stock}</div>
+                                <div className="text-xs text-gray-600">{percentage}%</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
                 {/* Individual Items List */}
                 <div className="mb-6">
                   <h4 className="text-md font-medium text-gray-900 mb-3">Daftar Item Individual</h4>
                   <div className="bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
                     <div className="space-y-2">
-                      {selectedProductDetail.items?.map((item, index) => {
+                      {selectedProductDetail.items?.filter(item => item && item.id && item.status).map((item, index) => {
                         const locationInfo = locationConfig[item.status] || locationConfig['TOKO'];
                         return (
                           <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-md border">
@@ -611,7 +675,7 @@ const DetailStok = () => {
                                 title={`Warna: ${item.color || '#3B82F6'}`}
                               />
                               <span className="text-xs font-mono text-gray-500">
-                                {item.uuid.substring(0, 8)}...
+                                {item.qr_code.substring(0, 8)}...
                               </span>
                               <span className="text-xs text-gray-400">
                                 {new Date(item.created_at).toLocaleDateString('id-ID')}
