@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import api from '../utils/api';
 import Webcam from 'react-webcam';
 import QrScanner from 'qr-scanner';
+import Modal from '../components/ui/Modal';
 
 const QuickScan = () => {
   const [scannedItems, setScannedItems] = useState([]);
@@ -23,6 +24,14 @@ const QuickScan = () => {
 
   // Camera duplicate prevention
   const [recentlyScannedCodes, setRecentlyScannedCodes] = useState(new Map()); // Map<qrCode, timestamp>
+
+  // Scan popup states
+  const [showScanPopup, setShowScanPopup] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [scanningPaused, setScanningPaused] = useState(false);
+
+  // Global processing flag to prevent concurrent QR processing
+  const isProcessingQrRef = useRef(false);
 
   // Calculate unique codes that can be processed from batch input
   const calculateProcessableCodesCount = () => {
@@ -254,6 +263,9 @@ const QuickScan = () => {
     setCurrentInput(''); // Clear input when toggling
   };
 
+  // Add scanningPaused as dependency to re-evaluate scanner when paused/unpaused
+  useEffect(() => {}, [scanningPaused]);
+
   // Camera scanning functionality
   useEffect(() => {
     if (cameraMode && webcamRef.current && canUseCamera) {
@@ -261,35 +273,96 @@ const QuickScan = () => {
       const scanner = new QrScanner(
         video,
         async (result) => {
-          const qrCode = result.data;
+          // Prevent concurrent QR processing to stop flooding
+          if (isProcessingQrRef.current) {
+            return; // Ignore this detection while another is being processed
+          }
 
-          // Check if this QR code was scanned recently (cooldown period)
-          const now = Date.now();
-          const lastScanTime = recentlyScannedCodes.get(qrCode);
-          const COOLDOWN_MS = 3000; // 3 second cooldown
+          // Set processing flag
+          isProcessingQrRef.current = true;
 
-          if (lastScanTime && (now - lastScanTime) < COOLDOWN_MS) {
-            // Still in cooldown period - show brief feedback but don't process
-            if ('vibrate' in navigator) {
-              navigator.vibrate(100); // Short vibration
+          try {
+            const qrCode = result.data;
+            const now = Date.now();
+            const lastScanTime = recentlyScannedCodes.get(qrCode);
+
+            // If it's a duplicate in the timeout period, pause scanner for timeout duration
+            if (lastScanTime && (now - lastScanTime) < 3000) {
+              scannerRef.current?.pause();
+              setError(`⚠️ Duplicate QR code detected - scanner paused for 3 seconds`);
+              setTimeout(() => {
+                setError('');
+                scannerRef.current?.start();
+              }, 3000);
+              return;
             }
-            setError(`⚠️ Same code scanned recently - scan a different QR code`);
-            setTimeout(() => setError(''), 1500);
-            return;
+
+            // Check if QR code already exists in the scanned list
+            const existingItem = scannedItems.find(item => item.uuid === qrCode);
+            if (existingItem) {
+              scannerRef.current?.pause();
+              setError(`🔄 QR code already scanned - scanner paused for 3 seconds`);
+              setTimeout(() => {
+                setError('');
+                scannerRef.current?.start();
+              }, 3000);
+              return;
+            }
+
+            // NEW QR code - pause scanner completely until popup is closed
+            scannerRef.current?.pause();
+
+            const response = await api.post('/scan', { qr_code: qrCode });
+
+            if (response.data.success) {
+              if (response.data.exists) {
+                // Product exists - show popup with product info and pause scanning
+                setScanResult({
+                  qrCode,
+                  product: response.data.product,
+                  isRegistered: true,
+                  onClose: () => {
+                    setScannedItems(items => [...items, {
+                      ...response.data.product,
+                      isRegistered: true
+                    }]);
+                    setSuccessMessage(`✅ Added: ${response.data.product.product_name}`);
+                    setTimeout(() => setSuccessMessage(''), 3000);
+                    scannerRef.current?.start();
+                  }
+                });
+                setShowScanPopup(true);
+                setRecentlyScannedCodes(prev => new Map(prev).set(qrCode, Date.now()));
+              } else {
+                // Product doesn't exist - show popup for unregistered and pause scanning
+                setScanResult({
+                  qrCode,
+                  product: null,
+                  isRegistered: false,
+                  onClose: () => {
+                    setScannedItems(items => [...items, {
+                      uuid: qrCode,
+                      isRegistered: false
+                    }]);
+                    setQrToRegister(qrCode);
+                    setError('ℹ️ Unregistered product added. Please register it for full functionality.');
+                    scannerRef.current?.start();
+                  }
+                });
+                setShowScanPopup(true);
+                setRecentlyScannedCodes(prev => new Map(prev).set(qrCode, Date.now()));
+              }
+            } else {
+              setError(`❌ Failed to scan QR code: ${response.data.message}`);
+              scannerRef.current?.start();
+            }
+          } catch (err) {
+            setError(`❌ Error scanning QR code: ${err.response?.data?.message || err.message}`);
+            scannerRef.current?.start();
+          } finally {
+            // Always reset processing flag
+            isProcessingQrRef.current = false;
           }
-
-          // Update recently scanned codes
-          setRecentlyScannedCodes(prev => new Map(prev).set(qrCode, now));
-
-          setError(`QR detected: ${qrCode}`);
-
-          // Trigger vibration if supported
-          if ('vibrate' in navigator) {
-            navigator.vibrate(200);
-          }
-
-          // Auto-submit the scanned code
-          await processScannedCode(qrCode);
         },
         {
           returnDetailedScanResult: true,
@@ -869,6 +942,86 @@ const QuickScan = () => {
           </div>
         </div>
       </div>
+
+      {/* Scan Result Popup Modal */}
+      <Modal
+        isOpen={showScanPopup}
+        onClose={() => {
+          setShowScanPopup(false);
+          setScanningPaused(false); // Resume scanning when modal is closed
+          // Execute the onClose action to add the item to list
+          if (scanResult?.onClose) {
+            scanResult.onClose();
+          }
+        }}
+        title={scanResult?.isRegistered ? "✅ Product Scanned" : "📝 Unregistered Code Scanned"}
+        size="md"
+        showCloseButton={true}
+      >
+        <div className="text-center">
+          {scanResult?.isRegistered ? (
+            <div className="space-y-4">
+              <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Product Found!</h4>
+                <p className="text-sm text-gray-600 mt-1">Adding to your scan list...</p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 text-left">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">QR Code:</span>
+                    <span className="text-sm font-mono text-gray-900">{scanResult.qrCode}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Product:</span>
+                    <span className="text-sm font-medium text-gray-900">{scanResult.product.product_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Category:</span>
+                    <span className="text-sm text-gray-900">{scanResult.product.category}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Status:</span>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      scanResult.product.status === 'TOKO' ? 'bg-green-100 text-green-800' :
+                      scanResult.product.status === 'TERJUAL' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {scanResult.product.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Unregistered QR Code</h4>
+                <p className="text-sm text-gray-600 mt-1">Adding to list for registration...</p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 text-left">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">QR Code:</span>
+                  <span className="text-sm font-mono text-gray-900">{scanResult?.qrCode}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Product Registration Modal */}
       {qrToRegister && (
