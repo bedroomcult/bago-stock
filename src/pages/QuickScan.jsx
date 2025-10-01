@@ -439,12 +439,12 @@ const QuickScan = () => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 mb-6 text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold mb-1">Quick Scan</h1>
-            <p className="text-blue-100">Scan QR codes quickly and efficiently</p>
+            <h1 className="text-2xl font-bold mb-1">Pemindaian Cepat</h1>
+            <p className="text-blue-100">Pindai kode QR dengan cepat dan efisien</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{scannedItems.length}</div>
-            <div className="text-sm text-blue-100">Items Scanned</div>
+            <div className="text-sm text-blue-100">Item Dipindai</div>
             {scannedItems.length > 0 && (
               <div className="flex gap-2 mt-2 text-xs">
                 <span className="bg-green-500 text-white px-2 py-1 rounded-full">
@@ -765,11 +765,11 @@ const QuickScan = () => {
           </div>
         </div>
 
-        {/* Scanned Items Cards */}
+        {/* Daftar Item Dipindai */}
         <div className="lg:col-span-2">
           <div className="bg-white shadow rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Scanned Items ({scannedItems.length})</h2>
+              <h2 className="text-lg font-medium text-gray-900">Item Dipindai ({scannedItems.length})</h2>
               {(error || cameraError) && (
                 <div className="text-sm text-red-600 max-w-md">{error || cameraError}</div>
               )}
@@ -782,91 +782,69 @@ const QuickScan = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No items scanned yet</h3>
-                <p className="text-gray-500">Use the scan methods above to add QR codes to your list</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada item yang dipindai</h3>
+                <p className="text-gray-500">Gunakan metode pemindaian di atas untuk menambahkan kode QR ke daftar Anda</p>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {scannedItems.map((item, index) => (
-                  <div
-                    key={item.uuid || index}
-                    className={`group relative bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-all ${
-                      item.isRegistered
-                        ? 'border-gray-200 bg-white'
-                        : 'border-yellow-200 bg-yellow-50'
-                    }`}
-                  >
-                    {/* Status Badge */}
-                    <div className="absolute top-3 right-3">
-                      {item.isRegistered ? (
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          item.status === 'TOKO' ? 'bg-green-100 text-green-800' :
-                          item.status === 'TERJUAL' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.status}
-                        </span>
-                      ) : (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                          Unregistered
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Remove Button */}
-                    <button
-                      onClick={() => removeItem(item.uuid)}
-                      className="absolute top-3 left-3 w-6 h-6 flex items-center justify-center text-red-600 hover:bg-red-100 hover:text-red-900 rounded-full transition-colors opacity-60 group-hover:opacity-100"
-                      title="Remove from list"
-                    >
-                      ×
-                    </button>
-
-                    {/* QR Code */}
-                    <div className="mt-6">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12l4-4m-4 4l-4-4m4 4V8" />
-                        </svg>
-                        <span className="text-sm font-medium text-gray-700">QR Code</span>
-                      </div>
-                      <div className="text-xs font-mono text-gray-900 bg-gray-50 p-2 rounded border">
-                        {item.uuid}
-                      </div>
-                    </div>
-
-                    {/* Product Info */}
-                    {item.isRegistered ? (
-                      <div className="mt-4 space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                          </svg>
-                          <span className="text-sm font-medium text-gray-700">Product</span>
-                        </div>
-                        <p className="text-sm text-gray-900 font-medium">{item.product_name}</p>
-
-                        <div className="flex items-center space-x-2">
-                          <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                          </svg>
-                          <span className="text-sm font-medium text-gray-700">Category</span>
-                        </div>
-                        <p className="text-sm text-gray-600">{item.category}</p>
-                      </div>
-                    ) : (
-                      <div className="mt-4 p-3 bg-white border border-yellow-200 rounded-md">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <svg className="h-4 w-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
-                          <span className="text-sm font-medium text-yellow-800">Registration Required</span>
-                        </div>
-                        <p className="text-xs text-yellow-700">This product needs to be registered first before bulk operations.</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode QR</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Produk</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kategori</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {scannedItems.map((item, index) => (
+                      <tr key={item.uuid || index} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900 max-w-xs truncate" title={item.uuid}>
+                          {item.uuid}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {item.isRegistered ? (
+                            <span className="font-medium">{item.product_name}</span>
+                          ) : (
+                            <span className="text-yellow-700 italic">Tidak Terdaftar</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {item.isRegistered ? item.category : '-'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {item.isRegistered ? (
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              item.status === 'TOKO' ? 'bg-green-100 text-green-800' :
+                              item.status === 'TERJUAL' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {item.status}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right">
+                          <button
+                            onClick={() => removeItem(item.uuid)}
+                            className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
+                            title="Hapus dari daftar"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.136 21H7.864a2 2 0 01-1.997-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
