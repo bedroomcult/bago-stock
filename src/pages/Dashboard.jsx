@@ -161,9 +161,9 @@ const Dashboard = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link 
-          to="/quick-scan" 
-          className="bg-blue-500 hover:bg-blue-600 text-white p-6 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-105"
+        <Link
+          to="/quick-scan"
+          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-sm hover:from-blue-600 hover:to-blue-700 hover:scale-105 transform transition-all duration-200"
         >
           <div className="flex items-center">
             <div className="bg-blue-100 p-3 rounded-full mr-4">
@@ -178,13 +178,13 @@ const Dashboard = () => {
           </div>
         </Link>
 
-        <Link 
-          to="/single-scan" 
-          className="bg-green-500 hover:bg-green-600 text-white p-6 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-105"
+        <Link
+          to="/single-scan"
+          className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow-sm hover:from-green-600 hover:to-green-700 hover:scale-105 transform transition-all duration-200"
         >
           <div className="flex items-center">
-            <div className="bg-green-100 p-3 rounded-full mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-3 rounded-full mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -196,13 +196,13 @@ const Dashboard = () => {
           </div>
         </Link>
 
-        <Link 
-          to="/detail-stok" 
-          className="bg-yellow-500 hover:bg-yellow-600 text-white p-6 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-105"
+        <Link
+          to="/detail-stok"
+          className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-sm hover:from-yellow-600 hover:to-yellow-700 hover:scale-105 transform transition-all duration-200"
         >
           <div className="flex items-center">
-            <div className="bg-yellow-100 p-3 rounded-full mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-3 rounded-full mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
             </div>
@@ -213,13 +213,13 @@ const Dashboard = () => {
           </div>
         </Link>
 
-        <Link 
-          to="/qr-generation" 
-          className="bg-purple-500 hover:bg-purple-600 text-white p-6 rounded-lg shadow-md transition duration-150 ease-in-out transform hover:scale-105"
+        <Link
+          to="/qr-generation"
+          className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-sm hover:from-purple-600 hover:to-purple-700 hover:scale-105 transform transition-all duration-200"
         >
           <div className="flex items-center">
-            <div className="bg-purple-100 p-3 rounded-full mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-3 rounded-full mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             </div>
@@ -232,54 +232,54 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="bg-blue-100 p-2 rounded-full mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-3 rounded-full mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Produk</p>
+              <p className="text-sm font-medium text-gray-700">Total Produk</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.totalProducts}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="bg-green-100 p-2 rounded-full mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-3 rounded-full mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Di Toko</p>
+              <p className="text-sm font-medium text-gray-700">Di Toko</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.inStore}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="bg-red-100 p-2 rounded-full mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-blue-100 p-3 rounded-full mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Stok Kritis</p>
-              <p className="text-2xl font-semibold text-red-600">{stats.criticalStock}</p>
+              <p className="text-sm font-medium text-gray-700">Stok Kritis</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.criticalStock}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity - Compact */}
-      <div className="bg-white p-4 rounded-lg shadow">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-medium text-gray-900">Aktivitas Terbaru</h2>
+      {/* Aktivitas Terbaru */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium text-gray-900">Aktivitas Terbaru</h2>
         </div>
         <div className="space-y-2 max-h-48 overflow-y-auto">
           {recentActivity.map((activity) => (

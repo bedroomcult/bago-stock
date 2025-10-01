@@ -1,18 +1,21 @@
 // src/pages/DetailStok.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 const DetailStok = () => {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [productCounts, setProductCounts] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
+  const [soldProducts, setSoldProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [filteredSoldProducts, setFilteredSoldProducts] = useState([]);
   const [emptyStockTemplates, setEmptyStockTemplates] = useState([]); // New state for empty stock templates
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('all');
-  const [viewMode, setViewMode] = useState('products'); // 'products' or 'empty-stock'
+  const [viewMode, setViewMode] = useState('products'); // 'products', 'empty-stock', or 'sold-items'
 
   // Dynamic location mappings fetched from database
   const [locationConfig, setLocationConfig] = useState({});
@@ -105,20 +108,30 @@ const DetailStok = () => {
       const response = await api.get('/products/detail');
       if (response.data.success) {
         console.log('📊 Product details loaded:', response.data.data);
-        // Exclude TERJUAL products from inventory since they're sold
+
+        // Separate active products from sold products
         const activeProducts = response.data.data.filter(product => product.status !== 'TERJUAL');
+        const soldItems = response.data.data.filter(product => product.status === 'TERJUAL');
+
         setAllProducts(activeProducts);
+        setSoldProducts(soldItems);
         setFilteredProducts(activeProducts);
+        setFilteredSoldProducts(soldItems);
+
         setProductCounts([]); // Clear old format since we're using new structure
       } else {
         console.error('❌ Failed to fetch products:', response.data.message);
         setAllProducts([]);
+        setSoldProducts([]);
         setFilteredProducts([]);
+        setFilteredSoldProducts([]);
       }
     } catch (error) {
       console.error('🚨 Error fetching products:', error);
       setAllProducts([]);
+      setSoldProducts([]);
       setFilteredProducts([]);
+      setFilteredSoldProducts([]);
     } finally {
       setLoading(false);
     }
@@ -141,13 +154,14 @@ const DetailStok = () => {
     }
   };
 
-  // Filter products based on search, location, and category
+  // Filter products and sold items based on view mode, search, location, and category
   useEffect(() => {
-    let filtered = allProducts;
+    // Filter active products
+    let filteredActive = allProducts;
 
     // Filter by search term
     if (searchTerm) {
-      filtered = filtered.filter(product =>
+      filteredActive = filteredActive.filter(product =>
         product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.qr_code.toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -155,16 +169,33 @@ const DetailStok = () => {
 
     // Filter by location
     if (selectedLocation !== 'all') {
-      filtered = filtered.filter(product => product.status === selectedLocation);
+      filteredActive = filteredActive.filter(product => product.status === selectedLocation);
     }
 
     // Filter by category
     if (selectedCategory) {
-      filtered = filtered.filter(product => product.category === selectedCategory);
+      filteredActive = filteredActive.filter(product => product.category === selectedCategory);
     }
 
-    setFilteredProducts(filtered);
-  }, [allProducts, searchTerm, selectedLocation, selectedCategory]);
+    // Filter sold products
+    let filteredSold = soldProducts;
+
+    // Filter by search term
+    if (searchTerm) {
+      filteredSold = filteredSold.filter(product =>
+        product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.qr_code.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by category (sold items can still be filtered by category)
+    if (selectedCategory) {
+      filteredSold = filteredSold.filter(product => product.category === selectedCategory);
+    }
+
+    setFilteredProducts(filteredActive);
+    setFilteredSoldProducts(filteredSold);
+  }, [allProducts, soldProducts, searchTerm, selectedLocation, selectedCategory]);
 
   const handleCategoryClick = (category) => {
     setSelectedCategory(category);
@@ -172,6 +203,7 @@ const DetailStok = () => {
 
   // Calculate statistics
   const totalProducts = filteredProducts.length;
+  const soldProductsCount = filteredSoldProducts.length;
   const lowStockCount = filteredProducts.filter(p => p.count <= 5).length;
   const activeProducts = filteredProducts.filter(p => p.status === 'TOKO').length;
   const emptyStockCount = emptyStockTemplates.length;
@@ -192,17 +224,32 @@ const DetailStok = () => {
     setSelectedProductDetail(null);
   };
 
+  // State for confirmation dialog
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+
   // Function to handle registration of an empty template
-  const handleRegisterEmptyTemplate = async (template) => {
-    // Redirect to SingleScan page with template pre-filled
-    // In a real implementation, you might want to open a modal or form here
-    alert(`Redirecting to register: ${template.category} - ${template.product_name}`);
-    // For now, we'll just log the action
-    console.log('Registering template:', template);
+  const handleRegisterEmptyTemplate = (template) => {
+    setSelectedTemplate(template);
+    setShowConfirmDialog(true);
+  };
+
+  // Function to confirm registration and navigate
+  const handleConfirmRegistration = () => {
+    if (!selectedTemplate) return;
+
+    setShowConfirmDialog(false);
+    const template = selectedTemplate;
+    setSelectedTemplate(null);
 
     // Navigate to SingleScan page with template data
-    // This would typically use React Router's history.push or similar
     window.location.href = `/single-scan?category=${encodeURIComponent(template.category)}&product_name=${encodeURIComponent(template.product_name)}`;
+  };
+
+  // Function to cancel registration
+  const handleCancelRegistration = () => {
+    setShowConfirmDialog(false);
+    setSelectedTemplate(null);
   };
 
   return (
@@ -216,7 +263,7 @@ const DetailStok = () => {
 
         {/* View Mode Toggle */}
         <div className="mb-4">
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 flex-wrap gap-2">
             <button
               onClick={() => setViewMode('products')}
               className={`px-4 py-2 text-sm font-medium rounded-md ${
@@ -237,6 +284,16 @@ const DetailStok = () => {
             >
               Template Kosong ({emptyStockCount})
             </button>
+            <button
+              onClick={() => setViewMode('sold-items')}
+              className={`px-4 py-2 text-sm font-medium rounded-md ${
+                viewMode === 'sold-items'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Produk Terjual ({soldProductsCount})
+            </button>
           </div>
         </div>
 
@@ -244,18 +301,32 @@ const DetailStok = () => {
         <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{viewMode === 'products' ? totalProducts : emptyStockCount}</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {viewMode === 'products' ? totalProducts :
+                 viewMode === 'empty-stock' ? emptyStockCount :
+                 soldProductsCount}
+              </div>
               <div className="text-xs sm:text-sm text-gray-600">
-                {viewMode === 'products' ? 'Total Produk' : 'Template Kosong'}
+                {viewMode === 'products' ? 'Total Produk' :
+                 viewMode === 'empty-stock' ? 'Template Kosong' :
+                 'Produk Terjual'}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-500">{lowStockCount}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Stok Rendah</div>
+              <div className="text-2xl font-bold text-red-500">
+                {viewMode === 'sold-items' ? totalProducts + soldProductsCount : totalProducts}
+              </div>
+              <div className="text-xs sm:text-sm text-gray-600">
+                {viewMode === 'sold-items' ? 'Total Semua' : 'Produk Aktif'}
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{activeProducts}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Di Toko</div>
+              <div className="text-2xl font-bold text-green-600">
+                {viewMode === 'products' ? activeProducts : totalProducts}
+              </div>
+              <div className="text-xs sm:text-sm text-gray-600">
+                {viewMode === 'products' ? 'Di Toko' : 'Total Aktif'}
+              </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">{Object.keys(locationConfig).length}</div>
@@ -279,8 +350,10 @@ const DetailStok = () => {
                   type="text"
                   className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   placeholder={
-                    viewMode === 'products' 
-                      ? "Cari berdasarkan nama produk atau QR code..." 
+                    viewMode === 'products'
+                      ? "Cari berdasarkan nama produk atau QR code..."
+                      : viewMode === 'sold-items'
+                      ? "Cari berdasarkan nama produk terjual..."
                       : "Cari berdasarkan nama template..."
                   }
                   value={searchTerm}
@@ -309,8 +382,8 @@ const DetailStok = () => {
           </div>
         </div>
 
-        {/* Category Selection (Original style maintained) - only for products view */}
-        {viewMode === 'products' && (
+        {/* Category Selection - only for products and sold-items views */}
+        {(viewMode === 'products' || viewMode === 'sold-items') && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Filter Berdasarkan Kategori</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-2 sm:gap-3">
@@ -319,7 +392,7 @@ const DetailStok = () => {
                   key={category}
                   className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
                     selectedCategory === category
-                      ? 'bg-blue-600 text-white shadow-md'
+                      ? (viewMode === 'sold-items' ? 'bg-red-600 text-white shadow-md' : 'bg-blue-600 text-white shadow-md')
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                   }`}
                   onClick={() => handleCategoryClick(category === selectedCategory ? null : category)}
@@ -425,12 +498,90 @@ const DetailStok = () => {
                   </div>
                 )}
               </div>
+            ) : viewMode === 'sold-items' ? (
+              /* Sold Items Grid */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                {filteredSoldProducts.length > 0 ? (
+                  filteredSoldProducts.map((product) => {
+                    return (
+                      <div key={product.id} className="bg-gray-50 rounded-lg shadow-sm border hover:shadow-md transition-shadow border-gray-200">
+                        {/* Product Header - Sold Items */}
+                        <div className="p-4 border-b border-gray-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="text-sm font-semibold text-gray-800 truncate pr-2">
+                              {product.product_name}
+                            </h3>
+                            <div className="flex items-center space-x-1">
+                              <div
+                                className="w-4 h-4 rounded border border-gray-30 flex-shrink-0 opacity-70"
+                                style={{ backgroundColor: product.color || '#3B82F6' }}
+                                title={`Warna: ${product.color || '#3B82F6'}`}
+                              />
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 flex-shrink-0">
+                                🛒 TERJUAL
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            QR: <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-xs opacity-70">{product.qr_code}</span>
+                          </p>
+                        </div>
+
+                        {/* Product Body - Sold Items */}
+                        <div className="p-4">
+                          {/* Status and Count */}
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                              📦 Archive
+                            </span>
+                            <span className="text-sm font-semibold text-red-600">
+                              {product.count} pcs
+                            </span>
+                          </div>
+
+                          {/* Sold Alert */}
+                          <div className="mb-3">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              ✅ Terjual
+                            </span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleShowProductDetail(product)}
+                              className="w-full bg-blue-50 text-blue-700 px-3 py-2 rounded-md text-xs font-medium hover:bg-blue-100 transition-colors"
+                            >
+                              📊 Detail Riwayat
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full flex flex-col items-center justify-center py-12">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m-8-4v10l8 4 8-4V7zM4 7V17m16 0V7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 16V7" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">
+                      {searchTerm ? 'Tidak ada produk terjual yang cocok' : 'Tidak ada produk terjual'}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {searchTerm
+                        ? 'Coba ubah kata kunci pencarian atau filter kategori'
+                        : 'Belum ada produk yang memiliki status terjual'}
+                    </p>
+                  </div>
+                )}
+              </div>
             ) : (
               /* Empty Stock Templates Grid */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {emptyStockTemplates.length > 0 ? (
                   emptyStockTemplates
-                    .filter(template => 
+                    .filter(template =>
                       template.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       template.category.toLowerCase().includes(searchTerm.toLowerCase())
                     )
@@ -495,8 +646,8 @@ const DetailStok = () => {
                       {searchTerm ? 'Tidak ada template yang cocok' : 'Semua template sudah terdaftar'}
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      {searchTerm 
-                        ? 'Coba ubah kata kunci pencarian' 
+                      {searchTerm
+                        ? 'Coba ubah kata kunci pencarian'
                         : 'Semua template produk sudah memiliki produk terdaftar'}
                     </p>
                   </div>
@@ -701,6 +852,18 @@ const DetailStok = () => {
             </div>
           </div>
         )}
+
+        {/* Confirm Dialog */}
+        <ConfirmDialog
+          isOpen={showConfirmDialog}
+          title="Konfirmasi Pendaftaran Template"
+          message={`Daftarkan template "${selectedTemplate?.product_name || ''}" untuk kategori "${selectedTemplate?.category || ''}"? Anda akan diarahkan ke halaman pemindaian untuk menyelesaikan proses pendaftaran.`}
+          confirmText="Ya, Daftar"
+          cancelText="Batal"
+          confirmType="primary"
+          onConfirm={handleConfirmRegistration}
+          onCancel={handleCancelRegistration}
+        />
       </div>
     </div>
   );

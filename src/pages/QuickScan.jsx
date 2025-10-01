@@ -137,7 +137,9 @@ const QuickScan = () => {
         )
       );
 
-      alert(`${registeredItems.length} produk berhasil diperbarui ke status ${selectedStatus}`);
+      // Show success toast instead of browser alert
+      setSuccessMessage(`${registeredItems.length} produk berhasil diperbarui ke status ${selectedStatus}`);
+      setTimeout(() => setSuccessMessage(''), 5000); // Show longer for bulk operations
       setSelectedStatus('');
     } catch (err) {
       setError(err.response?.data?.message || 'Terjadi kesalahan saat memperbarui produk');
@@ -799,13 +801,15 @@ const QuickScan = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {scannedItems.map((item, index) => (
-                      <tr key={item.uuid || index} className="hover:bg-gray-50">
+                    {scannedItems.map((item, index) => {
+                      const qrCode = item.qr_code || item.uuid;
+                      return (
+                      <tr key={qrCode || index} className="hover:bg-gray-50">
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                           {index + 1}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900 max-w-xs truncate" title={item.uuid}>
-                          {item.uuid}
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900 max-w-xs truncate" title={qrCode}>
+                          {qrCode}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {item.isRegistered ? (
@@ -842,7 +846,8 @@ const QuickScan = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
