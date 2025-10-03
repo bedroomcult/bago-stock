@@ -15,16 +15,14 @@ const Navbar = () => {
         { name: 'Dashboard', path: '/', icon: '🏠', group: 'main' },
         { name: 'Single Scan', path: '/single-scan', icon: '📱', group: 'main' },
         { name: 'Quick Scan', path: '/quick-scan', icon: '🔍', group: 'main' },
-
-        // Inventory Management
         { name: 'Detail Stok', path: '/detail-stok', icon: '📊', group: 'inventory' },
 
         // Admin Functions
+        { name: 'Manajemen User', path: '/user-management', icon: '👥', group: 'management' },
         { name: 'Generasi QR', path: '/qr-generation', icon: '🔗', group: 'admin' },
         { name: 'Template Produk', path: '/template-management', icon: '📋', group: 'admin' },
 
         // Management Tools
-        { name: 'Manajemen User', path: '/user-management', icon: '👥', group: 'management' },
         { name: 'Log Aktivitas', path: '/activity-log', icon: '📝', group: 'management' },
 
         // Bulk Operations

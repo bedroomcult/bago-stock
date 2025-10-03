@@ -52,23 +52,23 @@ const SingleScan = () => {
     try {
       const response = await api.post('/scan', { qr_code: qrCode.trim() });
       
-      if (response.data.success) {
-        if (response.data.exists) {
-          // Product exists, show confirmation modal
-          setExistingProduct(response.data.product);
-          setShowEditConfirm(true);
+        if (response.data.success) {
+          if (response.data.exists) {
+            // Product exists, show confirmation modal
+            setExistingProduct(response.data.product);
+            setShowEditConfirm(true);
+          } else {
+            // Product doesn't exist, show registration form with QR code
+            setProduct({
+              qr_code: response.data.qr_code,
+              category: '',
+              product_name: '',
+              status: 'TOKO'
+            });
+          }
         } else {
-          // Product doesn't exist, show registration form with QR code
-          setProduct({
-            qr_code: response.data.qr_code,
-            category: '',
-            product_name: '',
-            status: 'TOKO'
-          });
+          setError(response.data.message || 'Gagal memindai kode QR');
         }
-      } else {
-        setError(response.data.message || 'Gagal memindai kode QR');
-      }
     } catch (err) {
       setError(err.response?.data?.message || 'Terjadi kesalahan saat memindai');
     } finally {
@@ -113,6 +113,7 @@ const SingleScan = () => {
           showToast('Produk berhasil diperbarui', 'success');
           setProduct(null);
           setQrCode('');
+          setShowConfirmDialog(false);
         } else {
           setError(response.data.message);
         }
@@ -131,6 +132,7 @@ const SingleScan = () => {
           showToast('Produk berhasil didaftarkan', 'success');
           setProduct(null);
           setQrCode('');
+          setShowConfirmDialog(false);
         } else {
           setError(response.data.message);
         }
@@ -548,7 +550,7 @@ const SingleScan = () => {
 
         <ConfirmDialog
           isOpen={showConfirmDialog}
-          onClose={() => setShowConfirmDialog(false)}
+          onCancel={() => setShowConfirmDialog(false)}
           title="Konfirmasi Simpan"
           message={`Apakah Anda yakin ingin ${product?.id ? 'memperbarui' : 'mendaftarkan'} produk ini?`}
           confirmText={product?.id ? 'Perbarui' : 'Daftarkan'}
