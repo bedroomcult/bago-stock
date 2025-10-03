@@ -33,6 +33,34 @@ router.get('/statuses', requireAuth, async (req, res) => {
   }
 });
 
+// Get products that are currently in manufacturing process (DALAM PROSES)
+router.get('/dalam-proses', requireAuth, async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('id, category, product_name, color, status, dalam_proses, created_at')
+      .eq('dalam_proses', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      data: products
+    });
+  } catch (error) {
+    console.error('Get dalam proses products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get manufacturing process products'
+    });
+  }
+});
+
 // Get individual product records with full details
 router.get('/detail', requireAuth, async (req, res) => {
   try {
@@ -41,7 +69,8 @@ router.get('/detail', requireAuth, async (req, res) => {
 
     let query = supabase
       .from('products')
-      .select('id, qr_code, category, product_name, color, status, created_at, updated_at')
+      .select('id, qr_code, category, product_name, color, status, dalam_proses, created_at, updated_at')
+      .eq('dalam_proses', false) // Exclude products in manufacturing process
       .order('updated_at', { ascending: false });
 
     if (category && category !== 'all') {
@@ -159,51 +188,81 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// Register a new product
+// Register a new product or create dalam-proses product
 router.post('/', requireAuth, async (req, res) => {
   try {
     const supabase = getSupabaseClient();
     const { action, qr_code, category, product_name, status = 'TOKO' } = req.body;
 
-    if (action !== 'register') {
+    if (action !== 'register' && action !== 'create-dalam-proses') {
       return res.status(400).json({
         success: false,
         message: 'Invalid action'
       });
     }
 
-    if (!qr_code || !category || !product_name) {
+    // Registration requires QR code, dalam-proses doesn't
+    const isDalamProses = action === 'create-dalam-proses';
+
+    if (!category || !product_name) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields'
       });
     }
 
-    console.log('Register product attempt:', { qr_code, category, product_name });
-
-    // First validate that the QR code exists in qr_codes table
-    const { data: qrCodeEntry, error: qrError } = await supabase
-      .from('qr_codes')
-      .select('*')
-      .eq('qr_code', qr_code)
-      .single();
-
-    if (qrError && qrError.code === 'PGRST116') { // PGRST116 = not found
+    // QR code is required for registration but not for dalam-proses
+    if (!isDalamProses && !qr_code) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid QR code. This code was not generated in the system.'
+        message: 'QR code is required for registration'
       });
     }
 
-    if (qrError) {
-      throw qrError;
-    }
+    // Handle QR code validation for registration
+    if (!isDalamProses) {
+      console.log('Register product attempt:', { qr_code, category, product_name });
 
-    if (qrCodeEntry.is_used) {
-      return res.status(409).json({
-        success: false,
-        message: 'This QR code has already been used to register a product.'
-      });
+      // First validate that the QR code exists in qr_codes table
+      const { data: qrCodeEntry, error: qrError } = await supabase
+        .from('qr_codes')
+        .select('*')
+        .eq('qr_code', qr_code)
+        .single();
+
+      if (qrError && qrError.code === 'PGRST116') { // PGRST116 = not found
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid QR code. This code was not generated in the system.'
+        });
+      }
+
+      if (qrError) {
+        throw qrError;
+      }
+
+      if (qrCodeEntry.is_used) {
+        return res.status(409).json({
+          success: false,
+          message: 'This QR code has already been used to register a product.'
+        });
+      }
+
+      // Check if product with this QR code already exists
+      const { data: existingProduct, error: existingError } = await supabase
+        .from('products')
+        .select('id')
+        .eq('qr_code', qr_code)
+        .single();
+
+      if (existingProduct) {
+        return res.status(409).json({
+          success: false,
+          message: 'Product with this QR code already exists'
+        });
+      }
+    } else {
+      console.log('Create dalam-proses product attempt:', { category, product_name });
     }
 
     // Validate that the product name is from the predefined templates
@@ -235,20 +294,6 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Check if product with this QR code already exists
-    const { data: existingProduct, error: existingError } = await supabase
-      .from('products')
-      .select('id')
-      .eq('qr_code', qr_code)
-      .single();
-
-    if (existingProduct) {
-      return res.status(409).json({
-        success: false,
-        message: 'Product with this QR code already exists'
-      });
-    }
-
     // Get the color from template (use color value as-is since it's stored as plain text in database)
     const color = template.color || '#3B82F6';
 
@@ -256,11 +301,12 @@ router.post('/', requireAuth, async (req, res) => {
     const { data, error } = await supabase
       .from('products')
       .insert([{
-        qr_code: qr_code,
+        qr_code: isDalamProses ? null : qr_code, // QR code is null for dalam-proses
         category,
         product_name,
         color: color,
         status,
+        dalam_proses: isDalamProses, // Set dalam_proses flag
         registered_by: req.session.userId,
         updated_by: req.session.userId
       }])
@@ -271,19 +317,21 @@ router.post('/', requireAuth, async (req, res) => {
       throw error;
     }
 
-    // Mark the QR code as used in the qr_codes table
-    const { error: updateQrError } = await supabase
-      .from('qr_codes')
-      .update({
-        is_used: true,
-        used_by: req.session.userId,
-        used_at: new Date().toISOString()
-      })
-      .eq('qr_code', qr_code);
+    // Mark the QR code as used in the qr_codes table (only for registration)
+    if (!isDalamProses) {
+      const { error: updateQrError } = await supabase
+        .from('qr_codes')
+        .update({
+          is_used: true,
+          used_by: req.session.userId,
+          used_at: new Date().toISOString()
+        })
+        .eq('qr_code', qr_code);
 
-    if (updateQrError) {
-      console.error('Failed to mark QR code as used:', updateQrError);
-      // Don't fail the whole operation, but log the error
+      if (updateQrError) {
+        console.error('Failed to mark QR code as used:', updateQrError);
+        // Don't fail the whole operation, but log the error
+      }
     }
 
     // Log the activity
@@ -291,7 +339,7 @@ router.post('/', requireAuth, async (req, res) => {
       .from('activity_logs')
       .insert([{
         user_id: req.session.userId,
-        action: 'REGISTER_PRODUCT',
+        action: isDalamProses ? 'CREATE_DALAM_PROSES_PRODUCT' : 'REGISTER_PRODUCT',
         table_name: 'products',
         record_id: data.id,
         new_values: JSON.stringify(data),
@@ -302,7 +350,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Product registered successfully',
+      message: isDalamProses ? 'Product dalam proses produksi berhasil dibuat' : 'Product registered successfully',
       data
     });
   } catch (error) {
@@ -318,7 +366,7 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/', requireAuth, async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { id, category, product_name, status } = req.body;
+    const { id, category, product_name, status, dalam_proses } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -347,6 +395,7 @@ router.put('/', requireAuth, async (req, res) => {
     if (product_name) updateData.product_name = product_name;
     if (req.body.color) updateData.color = req.body.color;
     if (status) updateData.status = status;
+    if (dalam_proses !== undefined) updateData.dalam_proses = dalam_proses;
     updateData.updated_by = req.session.userId;
     updateData.updated_at = new Date().toISOString();
 
@@ -367,7 +416,7 @@ router.put('/', requireAuth, async (req, res) => {
       .from('activity_logs')
       .insert([{
         user_id: req.session.userId,
-        action: 'UPDATE_PRODUCT',
+        action: dalam_proses === false ? 'REGISTER_PRODUCT' : 'UPDATE_PRODUCT',
         table_name: 'products',
         record_id: id,
         old_values: JSON.stringify(currentProduct),
@@ -378,7 +427,7 @@ router.put('/', requireAuth, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Product updated successfully',
+      message: dalam_proses === false ? 'Product registered successfully' : 'Product updated successfully',
       data
     });
   } catch (error) {

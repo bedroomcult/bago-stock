@@ -26,8 +26,8 @@ const SingleScan = () => {
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Mock categories from the requirements
-  const categories = ['Sofa', 'Kursi', 'Meja', 'Sungkai', 'Nakas', 'Buffet'];
+  // Mock categories from the requirements with DALAM PROSES
+  const categories = ['Sofa', 'Kursi', 'Meja', 'Sungkai', 'Nakas', 'Buffet', 'DALAM PROSES'];
 
   // Mock status options from the requirements
   const statusOptions = ['TOKO', 'GUDANG KEPATHIAN', 'GUDANG NGUNUT', 'TERJUAL'];
@@ -38,6 +38,14 @@ const SingleScan = () => {
 
   const hideToast = () => {
     setToast(null);
+  };
+
+  // Helper function to reset form state after successful submission
+  const resetFormState = () => {
+    setProduct(null);
+    setQrCode('');
+    setError('');
+    setShowConfirmDialog(false);
   };
 
   const handleScan = async () => {
@@ -111,9 +119,7 @@ const SingleScan = () => {
 
         if (response.data.success) {
           showToast('Produk berhasil diperbarui', 'success');
-          setProduct(null);
-          setQrCode('');
-          setShowConfirmDialog(false);
+          resetFormState();
         } else {
           setError(response.data.message);
         }
@@ -129,10 +135,21 @@ const SingleScan = () => {
         });
 
         if (response.data.success) {
+          // If this was a DALAM PROSES product, update its status
+          if (product.category === 'DALAM PROSES') {
+            try {
+              await api.put('/products', {
+                id: product.dalamProsesId, // The original product ID from DALAM PROSES
+                dalam_proses: false
+              });
+            } catch (err) {
+              console.error('Failed to update DALAM PROSES status:', err);
+              // Don't fail the registration if this fails
+            }
+          }
+
           showToast('Produk berhasil didaftarkan', 'success');
-          setProduct(null);
-          setQrCode('');
-          setShowConfirmDialog(false);
+          resetFormState();
         } else {
           setError(response.data.message);
         }
@@ -158,12 +175,21 @@ const SingleScan = () => {
       // Fetch product names based on the selected category
       if (value) {
         try {
-          const response = await api.get(`/templates/by-category?category=${value}`);
+          let response;
+
+          if (value === 'DALAM PROSES') {
+            // For DALAM PROSES, fetch from products with dalam_proses = true
+            response = await api.get('/products/dalam-proses');
+          } else {
+            // For regular categories, fetch from templates
+            response = await api.get(`/templates/by-category?category=${value}`);
+          }
+
           if (response.data.success) {
-            // Store template data with colors
+            // Store product data
             setProduct(prev => ({
               ...prev,
-              productNames: response.data.data // Keep full template objects with colors
+              productNames: response.data.data // Keep full product/template objects
             }));
           } else {
             setError(response.data.message || 'Gagal mengambil nama produk');
@@ -197,7 +223,8 @@ const SingleScan = () => {
         ...prev,
         product_name: value,
         availableColors: availableColors,
-        color: '' // Clear selected color - user will choose
+        color: product.category === 'DALAM PROSES' ? selectedTemplate?.color : '', // For DALAM PROSES, use the stored color
+        dalamProsesId: product.category === 'DALAM PROSES' ? selectedTemplate?.id : null // Store the original product ID for DALAM PROSES
       }));
     } else {
       setProduct(prev => ({
@@ -372,25 +399,44 @@ const SingleScan = () => {
               placeholder="Pilih nama produk"
               required
               options={product.productNames && product.productNames.map(template => {
-                // Get primary color or default
-                const primaryColor = Array.isArray(template.colors) && template.colors.length > 0
-                  ? template.colors[0].hex
-                  : (typeof template.color === 'string' ? template.color : '#3B82F6');
-                const colorCount = Array.isArray(template.colors) ? template.colors.length : 1;
+                // For DALAM PROSES products, show the stored color directly
+                let primaryColor;
+                if (product.category === 'DALAM PROSES') {
+                  primaryColor = template.color || '#3B82F6';
+                  return {
+                    value: template.product_name,
+                    label: (
+                      <div className="flex items-center">
+                        <span
+                          className="inline-block w-4 h-4 rounded mr-2 border"
+                          style={{ backgroundColor: primaryColor }}
+                          title={`Warna: ${primaryColor}`}
+                        />
+                        {template.product_name}
+                      </div>
+                    )
+                  };
+                } else {
+                  // For regular templates, handle colors array
+                  primaryColor = Array.isArray(template.colors) && template.colors.length > 0
+                    ? template.colors[0].hex
+                    : (typeof template.color === 'string' ? template.color : '#3B82F6');
+                  const colorCount = Array.isArray(template.colors) ? template.colors.length : 1;
 
-                return {
-                  value: template.product_name,
-                  label: (
-                    <div className="flex items-center">
-                      <span
-                        className="inline-block w-4 h-4 rounded mr-2 border"
-                        style={{ backgroundColor: primaryColor }}
-                        title={`Warna: ${primaryColor}${colorCount > 1 ? ` (+${colorCount - 1} warna)` : ''}`}
-                      />
-                      {template.product_name}
-                    </div>
-                  )
-                };
+                  return {
+                    value: template.product_name,
+                    label: (
+                      <div className="flex items-center">
+                        <span
+                          className="inline-block w-4 h-4 rounded mr-2 border"
+                          style={{ backgroundColor: primaryColor }}
+                          title={`Warna: ${primaryColor}${colorCount > 1 ? ` (+${colorCount - 1} warna)` : ''}`}
+                        />
+                        {template.product_name}
+                      </div>
+                    )
+                  };
+                }
               })}
             />
 
