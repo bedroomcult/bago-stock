@@ -51,7 +51,7 @@ function AppContent() {
             user ? (
               <>
                 <Navbar />
-                <div className="pt-16 pb-4 px-2 sm:px-4 lg:px-6 max-w-7xl mx-auto">
+                <div className="pb-4 pt-12 md:pt-0 px-2 sm:px-4 lg:px-6 max-w-7xl mx-auto ml-0 md:ml-64">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/single-scan" element={<SingleScan />} />

@@ -6,8 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 const Navbar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const sidebarRef = useRef(null);
 
   const navItems = user?.role === 'admin'
     ? [
@@ -43,173 +43,112 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await logout();
-    setIsMenuOpen(false);
+    setIsSidebarOpen(false);
   };
 
-  // Close menu when clicking outside
+  // Close sidebar when clicking outside on mobile
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setIsSidebarOpen(false);
       }
     };
 
-    if (isMenuOpen) {
+    if (isSidebarOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMenuOpen]);
+  }, [isSidebarOpen]);
 
-  // Close menu on route change
+  // Close sidebar on route change
   useEffect(() => {
-    setIsMenuOpen(false);
+    setIsSidebarOpen(false);
   }, [location]);
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            {/* Logo/Brand */}
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
-                <span className="text-lg md:text-xl font-bold text-blue-600">Stok Bago</span>
-              </div>
-            </div>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-1">
-              {navItems.slice(0, 6).map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === item.path
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                  }`}
-                  title={item.name}
-                >
-                  {item.icon} <span className="ml-2 hidden lg:inline">{item.name}</span>
-                </Link>
-              ))}
-            </div>
-
-            {/* Mobile menu button and user info */}
-            <div className="flex items-center">
-              {/* User info - hidden on very small screens */}
-              <div className="hidden sm:flex items-center mr-4">
-                <span className="text-sm text-gray-700">Hi, {user?.fullName || user?.username}</span>
-              </div>
-
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="md:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-                aria-label="Toggle menu"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  {isMenuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  )}
-                </svg>
-              </button>
-
-              {/* Desktop logout button */}
-              <button
-                onClick={handleLogout}
-                className="hidden md:inline-flex ml-4 items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-              >
-                Keluar
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Mobile Menu Overlay */}
-      {isMenuOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-50 backdrop-blur-sm"
-          onClick={() => setIsMenuOpen(false)}
-        />
-      )}
-
-      {/* Mobile Menu Panel */}
-      <div
-        ref={menuRef}
-        className={`md:hidden fixed top-16 left-0 right-0 bg-white shadow-xl border-t border-gray-200 z-50 transform transition-all duration-300 ease-out ${
-          isMenuOpen
-            ? 'translate-y-0 opacity-100 scale-100'
-            : '-translate-y-2 opacity-0 scale-98 pointer-events-none'
-        }`}
-        style={{ maxHeight: isMenuOpen ? 'calc(100vh - 4rem)' : '0px' }}
-      >
-        <div className="overflow-y-auto h-full">
-          {/* Mobile Header - Always Compact */}
-          <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600 truncate">
-                  {user?.fullName || user?.username}
-                </span>
-                <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full">
-                  {user?.role === 'admin' ? 'Admin' : 'Staff'}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-0.5 bg-gray-300 rounded-full"></div>
-                {/* Close Button */}
-                <button
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
-                  aria-label="Close menu"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-2 py-1">
-            {navItems.map((item, index) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center px-2 py-2 text-xs font-medium rounded-md transition-all duration-150 active:scale-95 ${
-                  location.pathname === item.path
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-                style={{ minHeight: '36px' }} // Ultra-compact touch target
-              >
-                <span className="text-base mr-2 w-4 text-center flex items-center justify-center">{item.icon}</span>
-                <span className="flex-1 truncate">{item.name}</span>
-                {location.pathname === item.path && (
-                  <span className="text-blue-600 text-xs">●</span>
-                )}
-              </Link>
-            ))}
-          </div>
-
-          <div className="border-t border-gray-200 mt-1 pt-2">
-            <button
-              onClick={handleLogout}
-              className="flex items-center w-full px-2 py-2 text-xs font-medium text-red-700 hover:bg-red-50 active:bg-red-100 rounded-md transition-all duration-150 active:scale-95 mx-2"
-              style={{ minHeight: '36px' }} // Ultra-compact touch target
-            >
-              <span className="text-base mr-2 w-4 text-center flex items-center justify-center">🚪</span>
-              <span className="flex-1 truncate">Keluar</span>
-            </button>
-          </div>
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white shadow border-b">
+        <div className="flex items-center justify-between px-4 h-12">
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+            aria-label="Open sidebar"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
+          <div className="text-lg font-bold text-blue-600">Stok Bago</div>
+          <div className="w-10"></div> {/* Spacer for balance */}
         </div>
       </div>
+
+      {/* Sidebar */}
+      <div
+        ref={sidebarRef}
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg border-r border-gray-200 transform transition-transform duration-300 ease-in-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* Logo */}
+        <div className="flex items-center justify-between h-16 px-4 bg-blue-600">
+          <span className="text-lg font-bold text-white">Stok Bago</span>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden text-white hover:bg-blue-700 p-2 rounded transition-colors"
+            aria-label="Close sidebar"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          {navItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={() => setIsSidebarOpen(false)}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                location.pathname === item.path
+                  ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <span className="text-base mr-3">{item.icon}</span>
+              <span className="truncate">{item.name}</span>
+            </Link>
+          ))}
+        </nav>
+
+        {/* Logout button */}
+        <div className="border-t border-gray-200 p-4">
+          <button
+            onClick={handleLogout}
+            className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+          >
+            <span className="text-base mr-3">🚪</span>
+            <span>Keluar</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile overlay */}
+      {isSidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black bg-opacity-50 backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
     </>
   );
 };

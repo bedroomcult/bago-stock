@@ -115,22 +115,27 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 
         archive.pipe(res);
 
-        // Generate QR code images and add to ZIP
+        // Generate QR code images and add to ZIP - 2x3cm QR codes
         for (const qr of generatedQrs) {
           try {
-            // Create canvas with QR code and text
+            // Create canvas sized for 2x3cm QR code (approximately 236x354 pixels at 300 DPI)
+            const qrPixelWidth = 236; // 2cm at ~300 DPI
+            const textHeight = 60; // Space for text
+            const canvasWidth = qrPixelWidth + 40; // Add some padding
+            const canvasHeight = qrPixelWidth + textHeight + 40; // QR height + text + padding
+
             const { createCanvas } = require('canvas');
-            const canvas = createCanvas(400, 450); // Width: 400px, Height: 450px (extra for text)
+            const canvas = createCanvas(canvasWidth, canvasHeight);
             const ctx = canvas.getContext('2d');
 
             // Fill white background
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Generate QR code buffer
+            // Generate QR code buffer at 2x3cm size
             const qrBuffer = await QRCode.toBuffer(qr.qr_code, {
               type: 'png',
-              width: 300,
+              width: qrPixelWidth,
               margin: 2,
               errorCorrectionLevel: 'M'
             });
@@ -140,18 +145,23 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
             const qrImage = await loadImage(qrBuffer);
 
             // Center QR code horizontally
-            const qrX = (canvas.width - 300) / 2; // Center horizontally
+            const qrX = (canvas.width - qrPixelWidth) / 2;
             const qrY = 20; // Top margin
 
-            // Draw QR code
-            ctx.drawImage(qrImage, qrX, qrY, 300, 300);
+            // Draw QR code (square, even though we call it 2x3cm, QR codes are square)
+            ctx.save();
+            ctx.translate(qrX + qrPixelWidth / 2, qrY + qrPixelWidth / 2);
+            ctx.rotate(Math.PI / 2);
+            ctx.translate(-qrPixelWidth / 2, -qrPixelWidth / 2);
+            ctx.drawImage(qrImage, qrX, qrY, qrPixelWidth, qrPixelWidth);
+            ctx.restore();
 
             // Add text below QR code
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 20px Arial';
+            ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillText(qr.qr_code, canvas.width / 2, qrY + 300 + 15); // Center text below QR
+            ctx.fillText(qr.qr_code, canvas.width / 2, qrY + qrPixelWidth + 10); // Center text below QR
 
             // Convert to buffer and add to ZIP
             const finalBuffer = canvas.toBuffer('image/png');
@@ -165,7 +175,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         archive.finalize();
 
       } else if (format === 'pdf') {
-        // Generate PDF with 1 QR code per page
+        // Generate PDF with one QR code per 2x3cm page
         const startCode = `BAGO${nextNumber.toString().padStart(6, '0')}`;
         const endCode = `BAGO${(nextNumber + count - 1).toString().padStart(6, '0')}`;
         const filename = `QR_Codes_${startCode}_${endCode}.pdf`;
@@ -173,19 +183,22 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
+        // Page size: 2cm x 3cm (approximately 57x85 points)
+        const pageWidth = 57; // 2cm
+        const pageHeight = 85; // 3cm
+        const margin = 3; // Small margins to prevent cropping
+        const qrSize = pageWidth - (2 * margin); // QR code fills most of the page
+        const textSpacing = 2; // Minimal spacing between QR and text
+        const fontSize = 6; // Very small font for text
+
         const doc = new PDFDocument({
-          size: [170, 227], // 6cm x 8cm custom size (converted to points)
-          margin: 14 // 0.5 cm margins to fit QR codes properly
+          size: [pageWidth, pageHeight], // 2x3cm page size
+          margin: 0 // No document margins, we control positioning
         });
 
         doc.pipe(res);
 
-        const pageWidth = doc.page.width;
-        const pageHeight = doc.page.height;
-        const margin = 14; // 0.5 cm margins (adjusted for 6x7cm paper size)
-        const qrSize = 142; // 5x5 cm QR codes (approximately)
-
-        // Create one page per QR code
+        // Process one QR code per page
         for (let i = 0; i < generatedQrs.length; i++) {
           const qr = generatedQrs[i];
 
@@ -195,43 +208,43 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
           }
 
           try {
-            // Generate QR code buffer
+            // Generate QR code buffer to fit the page
             const qrBuffer = await QRCode.toBuffer(qr.qr_code, {
               type: 'png',
               width: qrSize,
-              margin: 4,
+              margin: 1, // Minimal margin to prevent cropping
               errorCorrectionLevel: 'M'
             });
 
-            // Calculate dimensions for centering QR code + text as a group
-            const textSpacing = 20; // Space between QR and text
-            const textHeight = 14; // Estimated height for 12pt font
-            const totalContentHeight = qrSize + textSpacing + textHeight; // ~176 points
+            // Position QR code to fill most of the 2x3cm page
+            const qrX = margin; // Left margin
+            const qrY = margin; // Top margin (leave some space for text at bottom)
 
-            // Center the entire QR + text group vertically on the page
-            const groupY = (pageHeight - totalContentHeight) / 2;
-
-            // Position QR code and text horizontally centered
-            const qrX = (pageWidth - qrSize) / 2;
-            const qrY = groupY + 10; // Small top margin from group start
-
-            // Add QR code image (centered)
+            // Add QR code image
+            doc.save();
+            doc.rotate(90, { origin: [qrX + qrSize / 2, qrY + qrSize / 2] });
             doc.image(qrBuffer, qrX, qrY, {
               width: qrSize,
               height: qrSize
             });
+            doc.restore();
 
-            // Add QR code text below the QR code (centered, compact, readable)
-            doc.fontSize(12).font('Helvetica-Bold');
-            doc.text(qr.qr_code, qrX, qrY + qrSize + textSpacing, {
+            // Add QR code text at very bottom (very small, centered)
+            // Position it so it doesn't overlap with QR and fits within page
+            const textY = qrY + qrSize + textSpacing;
+            doc.fontSize(fontSize).font('Helvetica-Bold');
+            doc.text(qr.qr_code, qrX, textY, {
               width: qrSize,
               align: 'center'
             });
 
           } catch (qrError) {
             console.error(`Error generating QR code for ${qr.qr_code}:`, qrError);
-            // Add error page
-            doc.fontSize(18).text(`Error generating QR code: ${qr.qr_code}`, { align: 'center' });
+            // Add error text on the page
+            doc.fontSize(fontSize).text(`Error: ${qr.qr_code}`, margin, margin, {
+              width: qrSize,
+              align: 'center'
+            });
           }
         }
 

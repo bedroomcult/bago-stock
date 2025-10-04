@@ -40,17 +40,49 @@ router.get('/dalam-proses', requireAuth, async (req, res) => {
 
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, category, product_name, color, status, dalam_proses, created_at')
+      .select('id, qr_code, category, product_name, color, status, dalam_proses, created_at, updated_at')
       .eq('dalam_proses', true)
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false });
 
     if (error) {
       throw error;
     }
 
+    // Group and count products by name for dalam-proses view
+    const productDetails = products.reduce((acc, product) => {
+      const key = `${product.category}-${product.product_name}`;
+      if (!acc[key]) {
+        acc[key] = {
+          id: product.id,
+          qr_code: product.qr_code,
+          product_name: product.product_name,
+          category: product.category,
+          color: product.color || '#3B82F6',
+          status: product.status,
+          count: 1,
+          last_updated: product.updated_at,
+          items: [product] // Store individual items for reference
+        };
+      } else {
+        acc[key].count += 1;
+        acc[key].items.push(product);
+        // Keep the most recent update time
+        if (new Date(product.updated_at) > new Date(acc[key].last_updated)) {
+          acc[key].last_updated = product.updated_at;
+        }
+      }
+      return acc;
+    }, {});
+
+    // Convert to array and add low stock detection
+    const result = Object.values(productDetails).map(product => ({
+      ...product,
+      is_low_stock: product.count <= 5 // Low stock threshold
+    }));
+
     res.json({
       success: true,
-      data: products
+      data: result
     });
   } catch (error) {
     console.error('Get dalam proses products error:', error);
