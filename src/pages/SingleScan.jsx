@@ -22,9 +22,13 @@ const SingleScan = () => {
   const [existingProduct, setExistingProduct] = useState(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [toast, setToast] = useState(null);
+  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
   const navigate = useNavigate();
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Check if any dialog is open that should block main input interactions
+  const isInputBlocked = photoScanning || showEditConfirm || showConfirmDialog;
 
   // Mock categories from the requirements with DALAM PROSES
   const categories = ['Sofa', 'Kursi', 'Meja', 'Sungkai', 'Nakas', 'Buffet', 'DALAM PROSES'];
@@ -59,7 +63,7 @@ const SingleScan = () => {
 
     try {
       const response = await api.post('/scan', { qr_code: qrCode.trim() });
-      
+
         if (response.data.success) {
           if (response.data.exists) {
             // Product exists, show confirmation modal
@@ -71,7 +75,8 @@ const SingleScan = () => {
               qr_code: response.data.qr_code,
               category: '',
               product_name: '',
-              status: 'TOKO'
+              status: 'TOKO',
+              productNames: []
             });
           }
         } else {
@@ -81,6 +86,7 @@ const SingleScan = () => {
       setError(err.response?.data?.message || 'Terjadi kesalahan saat memindai');
     } finally {
       setLoading(false);
+      setIsAutoProcessing(false); // Reset flag after processing completes
     }
   };
 
@@ -113,7 +119,6 @@ const SingleScan = () => {
           id: product.id,
           category: product.category,
           product_name: product.product_name,
-          color: product.color, // Include color when updating
           status: product.status
         });
 
@@ -130,7 +135,6 @@ const SingleScan = () => {
           qr_code: product.qr_code,
           category: product.category,
           product_name: product.product_name,
-          color: product.color, // Include color when registering
           status: product.status
         });
 
@@ -162,13 +166,12 @@ const SingleScan = () => {
   };
 
   const handleInputChange = async (field, value) => {
-    if (field === 'category') {
-      // Clear product name first when category changes
+  if (field === 'category') {
+      // Clear product name when category changes
       setProduct(prev => ({
         ...prev,
         category: value,
         product_name: '',
-        color: '#3B82F6', // Reset color when category changes
         productNames: []
       }));
 
@@ -185,46 +188,27 @@ const SingleScan = () => {
             response = await api.get(`/templates/by-category?category=${value}`);
           }
 
-          if (response.data.success) {
-            // Store product data
+          if (response.data.success && response.data.data) {
             setProduct(prev => ({
               ...prev,
-              productNames: response.data.data // Keep full product/template objects
+              productNames: response.data.data
             }));
           } else {
             setError(response.data.message || 'Gagal mengambil nama produk');
           }
         } catch (err) {
+          console.warn('Error fetching templates:', err);
           setError(err.response?.data?.message || 'Terjadi kesalahan saat mengambil nama produk');
         }
       }
     } else if (field === 'product_name') {
-      // When product name is selected, also set the available colors from the template
+      // When product name is selected
       const selectedTemplate = product.productNames?.find(template => template.product_name === value);
-
-      // Ensure colors is always an array of objects
-      let availableColors = [];
-      if (selectedTemplate) {
-        if (Array.isArray(selectedTemplate.colors) && selectedTemplate.colors.length > 0) {
-          availableColors = selectedTemplate.colors;
-        } else if (Array.isArray(selectedTemplate.color)) {
-          // Handle the case where color field contains the array
-          availableColors = selectedTemplate.color;
-        } else if (typeof selectedTemplate.color === 'string') {
-          // Legacy single color format
-          availableColors = [{ name: 'Default', hex: selectedTemplate.color }];
-        } else {
-          // Default fallback
-          availableColors = [{ name: 'Default', hex: '#3B82F6' }];
-        }
-      }
 
       setProduct(prev => ({
         ...prev,
         product_name: value,
-        availableColors: availableColors,
-        color: product.category === 'DALAM PROSES' ? selectedTemplate?.color : '', // For DALAM PROSES, use the stored color
-        dalamProsesId: product.category === 'DALAM PROSES' ? selectedTemplate?.id : null // Store the original product ID for DALAM PROSES
+        dalamProsesId: product.category === 'DALAM PROSES' ? selectedTemplate?.id : null
       }));
     } else {
       setProduct(prev => ({
@@ -256,26 +240,45 @@ const SingleScan = () => {
       const result = await QrScanner.scanImage(file);
       setQrCode(result);
       setPhotoScanning(false);
-      // Auto-submit immediately after QR scan
-      handleScan();
+      // Auto-processing will be handled by useEffect
     } catch (error) {
       setPhotoScanning(false);
       setError('QR Code tidak ditemukan dalam gambar');
     }
   };
 
+  // Auto-scan useEffect - triggers handleScan when qrCode changes (from scanner)
+  useEffect(() => {
+    let timer;
+    if (qrCode && !loading && !isAutoProcessing) {
+      setIsAutoProcessing(true);
+      // Small delay to ensure state is stable and prevent immediate processing
+      timer = setTimeout(() => {
+        handleScan();
+      }, 300);
+    }
+
+    // Cleanup: clear timer on unmount or dependency change
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [qrCode, loading]); // Removed isAutoProcessing from deps to avoid re-triggering
+
   useEffect(() => {
     let scanner = null;
+    let processed = false; // Prevent multiple detections
 
     if (photoScanning && webcamRef.current) {
       scanner = new QrScanner(
         webcamRef.current.video,
         (result) => {
-          // Automatically set the QR code value and submit
+          if (processed) return; // Skip if already processed
+          processed = true; // Lock processing
+
+          // Set QR code value
           setQrCode(result.data);
-          setPhotoScanning(false);
-          // Auto-submit immediately after scanning
-          handleScan();
+          setPhotoScanning(false); // Close modal immediately
+          // Auto-processing will be handled by the qrCode useEffect
         },
         {
           highlightScanRegion: true,
@@ -303,46 +306,56 @@ const SingleScan = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Single Scan</h1>
 
         <div className="bg-white shadow rounded-lg p-4 sm:p-6 mb-6">
-        <FormInput
-          label="Kode QR"
-          name="qrCode"
-          value={qrCode}
-          onChange={(e) => setQrCode(e.target.value)}
-          placeholder="Masukkan kode QR atau gunakan pemindai"
-          className="mb-4"
-        />
+        {/* Block input interactions when dialogs are open */}
+        <div className={isInputBlocked ? 'pointer-events-none opacity-50' : ''}>
+          <FormInput
+            label="Kode QR"
+            name="qrCode"
+            value={qrCode}
+            onChange={(e) => setQrCode(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleScan();
+              }
+            }}
+            disabled={isInputBlocked}
+            placeholder="Masukkan kode QR atau gunakan pemindai"
+            className="mb-4"
+          />
 
-        <div className="mb-4 flex">
-          <FormButton
-            type="button"
-            variant="outline"
-            onClick={startCameraScan}
-          >
-            <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" stroke="currentColor" fill="none">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Kamera
-          </FormButton>
-          <FormButton
-            type="button"
-            variant="outline"
-            onClick={scanFromImage}
-            className="ml-2"
-          >
-            <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" stroke="currentColor" fill="none">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Gambar
-          </FormButton>
-          <FormButton
-            variant="primary"
-            onClick={handleScan}
-            loading={loading}
-            className="ml-2"
-          >
-            {loading ? 'Memproses...' : 'Pindai'}
-          </FormButton>
+          <div className="mb-4 flex">
+            <FormButton
+              type="button"
+              variant="outline"
+              onClick={startCameraScan}
+            >
+              <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Kamera
+            </FormButton>
+            <FormButton
+              type="button"
+              variant="outline"
+              onClick={scanFromImage}
+              className="ml-2"
+            >
+              <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Gambar
+            </FormButton>
+            <FormButton
+              variant="primary"
+              onClick={handleScan}
+              loading={loading}
+              className="ml-2 min-w-0 flex-shrink-0 whitespace-nowrap"
+            >
+              {loading ? 'Memproses...' : 'Pindai'}
+            </FormButton>
+          </div>
         </div>
 
         {/* Hidden file input for image upload */}
@@ -398,58 +411,9 @@ const SingleScan = () => {
               onChange={(e) => handleInputChange('product_name', e.target.value)}
               placeholder="Pilih nama produk"
               required
-              options={product.productNames && product.productNames.map(template => {
-                // For DALAM PROSES products, show the stored color directly
-                let primaryColor;
-                if (product.category === 'DALAM PROSES') {
-                  primaryColor = template.color || '#3B82F6';
-                  return {
-                    value: template.product_name,
-                    label: (
-                      <div className="flex items-center">
-                        <span
-                          className="inline-block w-4 h-4 rounded mr-2 border"
-                          style={{ backgroundColor: primaryColor }}
-                          title={`Warna: ${primaryColor}`}
-                        />
-                        {template.product_name}
-                      </div>
-                    )
-                  };
-                } else {
-                  // For regular templates, handle colors array
-                  primaryColor = Array.isArray(template.colors) && template.colors.length > 0
-                    ? template.colors[0].hex
-                    : (typeof template.color === 'string' ? template.color : '#3B82F6');
-                  const colorCount = Array.isArray(template.colors) ? template.colors.length : 1;
-
-                  return {
-                    value: template.product_name,
-                    label: (
-                      <div className="flex items-center">
-                        <span
-                          className="inline-block w-4 h-4 rounded mr-2 border"
-                          style={{ backgroundColor: primaryColor }}
-                          title={`Warna: ${primaryColor}${colorCount > 1 ? ` (+${colorCount - 1} warna)` : ''}`}
-                        />
-                        {template.product_name}
-                      </div>
-                    )
-                  };
-                }
-              })}
-            />
-
-            <FormSelect
-              label="Warna Produk"
-              name="color"
-              value={product.color}
-              onChange={(e) => handleInputChange('color', e.target.value)}
-              placeholder="Pilih warna"
-              required
-              options={product.availableColors && product.availableColors.map((colorOption, index) => ({
-                value: colorOption.hex,
-                label: `🎨 ${colorOption.name} (${colorOption.hex})`
+              options={product.productNames && product.productNames.map(template => ({
+                value: template.product_name,
+                label: template.product_name
               }))}
             />
 

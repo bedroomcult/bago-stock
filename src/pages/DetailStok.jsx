@@ -2,34 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useAuth } from '../contexts/AuthContext';
 
-// Safe color parsing utility - color comes as JSON array [{"hex": "#ffffff","name": "-"}]
-const getSafeColors = (colorData) => {
-  const DEFAULT_COLORS = [{ hex: '#ffffff', name: '-' }];
-
-  if (!colorData) return DEFAULT_COLORS;
-
-  try {
-    // If it's a JSON string, parse it
-    if (typeof colorData === 'string') {
-      const parsed = JSON.parse(colorData);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_COLORS;
-    }
-
-    // If it's already an array, return it
-    if (Array.isArray(colorData)) {
-      return colorData.length > 0 ? colorData : DEFAULT_COLORS;
-    }
-
-    // Fallback for unexpected formats
-    return DEFAULT_COLORS;
-  } catch (error) {
-    console.warn('Failed to parse color data:', colorData, error);
-    return DEFAULT_COLORS;
-  }
-};
 
 const DetailStok = () => {
+  const { user } = useAuth(); // Get user info for role checking
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [productCounts, setProductCounts] = useState([]);
@@ -45,66 +22,10 @@ const DetailStok = () => {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [viewMode, setViewMode] = useState('products'); // 'products', 'empty-stock', 'sold-items', or 'dalam-proses'
 
-  // Dynamic location mappings fetched from database
-  const [locationConfig, setLocationConfig] = useState({});
-  const [availableStatuses, setAvailableStatuses] = useState([]);
-
-  // Color mappings for different locations - loaded after statuses are fetched
-  const getLocationColor = (index) => {
-    const colors = [
-      { bg: 'bg-green-100', text: 'text-green-800', icon: '🏪' },
-      { bg: 'bg-blue-100', text: 'text-blue-800', icon: '🏭' },
-      { bg: 'bg-orange-100', text: 'text-orange-800', icon: '🏗️' },
-      { bg: 'bg-purple-100', text: 'text-purple-800', icon: '💰' },
-      { bg: 'bg-red-100', text: 'text-red-800', icon: '🔴' },
-      { bg: 'bg-indigo-100', text: 'text-indigo-800', icon: '💠' },
-      { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: '🟡' },
-      { bg: 'bg-pink-100', text: 'text-pink-800', icon: '💖' }
-    ];
-    return colors[index % colors.length];
-  };
-
-  const fetchStatuses = async () => {
-    try {
-      const response = await api.get('/products/statuses');
-      if (response.data.success) {
-        const statuses = response.data.data;
-        setAvailableStatuses(statuses);
-
-        // Create location config from fetched statuses
-        const config = {};
-        statuses.forEach((status, index) => {
-          const colorInfo = getLocationColor(index);
-          config[status] = {
-            label: status, // Use the actual status string as label
-            color: `${colorInfo.bg} ${colorInfo.text}`,
-            icon: colorInfo.icon
-          };
-        });
-
-        setLocationConfig(config);
-        console.log('📍 Location config loaded from database:', config);
-      } else {
-        console.error('Failed to fetch statuses:', response.data.message);
-        // Fallback config if API fails
-        setLocationConfig({
-          'TOKO': { label: 'TOKO', color: 'bg-green-100 text-green-800', icon: '🏪' },
-          'GUDANG KEPATHIAN': { label: 'GUDANG KEPATHIAN', color: 'bg-blue-100 text-blue-800', icon: '🏭' }
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching statuses:', error);
-      // Fallback config if API fails
-      setLocationConfig({
-        'TOKO': { label: 'TOKO', color: 'bg-green-100 text-green-800', icon: '🏪' },
-        'GUDANG KEPATHIAN': { label: 'GUDANG KEPATHIAN', color: 'bg-blue-100 text-blue-800', icon: '🏭' }
-      });
-    }
-  };
+  // REMOVED: Dynamic location mappings and color system
 
   useEffect(() => {
     fetchCategories();
-    fetchStatuses();
     fetchAllProducts();
     fetchDalamProsesProducts(); // Fetch dalam proses products
     fetchEmptyStockTemplates(); // Fetch empty stock templates
@@ -325,10 +246,10 @@ const DetailStok = () => {
   const [dalamProsesForm, setDalamProsesForm] = useState({
     category: '',
     product_name: '',
-    color: '#3B82F6'
+    color: '#3B82F6',
+    count: 1
   });
   const [dalamProsesTemplateOptions, setDalamProsesTemplateOptions] = useState([]);
-  const [dalamProsesAvailableColors, setDalamProsesAvailableColors] = useState([]);
   const [error, setError] = useState('');
 
   // Function to handle registration of an empty template
@@ -371,8 +292,9 @@ const DetailStok = () => {
         category: dalamProsesForm.category,
         product_name: dalamProsesForm.product_name,
         color: dalamProsesForm.color,
-        status: 'TOKO', // Default status for manufacturing products
-        dalam_proses: true // Indicate this is a manufacturing process product
+        status: null, // No default status for manufacturing process products
+        dalam_proses: true, // Indicate this is a manufacturing process product
+        count: dalamProsesForm.count // Number of items to create
       });
 
       if (response.data.success) {
@@ -380,7 +302,8 @@ const DetailStok = () => {
         setDalamProsesForm({
           category: '',
           product_name: '',
-          color: '#3B82F6'
+          color: '#3B82F6',
+          count: 1
         });
         fetchAllProducts(); // Refresh the products list
         fetchDalamProsesProducts(); // Refresh dalam proses products
@@ -433,21 +356,12 @@ const DetailStok = () => {
     }
   };
 
-  // Handle product name change for DALAM PROSES modal - auto-fill color from template
+  // Handle product name change for DALAM PROSES modal - simplified without colors
   const handleDalamProsesProductChange = (productName) => {
-    const selectedTemplate = dalamProsesTemplateOptions.find(template => template.product_name === productName);
-
-    // Extract available colors for this template
-    const availableColors = selectedTemplate ? getSafeColors(selectedTemplate.color) : [];
-    setDalamProsesAvailableColors(availableColors);
-
-    // Set first available color as default
-    const defaultColor = availableColors.length > 0 ? availableColors[0].hex : '#3B82F6';
-
     setDalamProsesForm(prev => ({
       ...prev,
       product_name: productName,
-      color: defaultColor
+      color: '#3B82F6'
     }));
   };
 
@@ -505,12 +419,14 @@ const DetailStok = () => {
                 Produk Terjual ({soldProductsCount})
               </button>
             </div>
-            <button
-              onClick={() => setShowDalamProsesModal(true)}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-orange-600 text-white hover:bg-orange-700"
-            >
-              🏭 Tambah Proses Produksi
-            </button>
+            {user && user.role === 'admin' && (
+              <button
+                onClick={() => setShowDalamProsesModal(true)}
+                className="px-4 py-2 text-sm font-medium rounded-md bg-orange-600 text-white hover:bg-orange-700"
+              >
+                🏭 Tambah Proses Produksi
+              </button>
+            )}
           </div>
         </div>
 
@@ -546,8 +462,8 @@ const DetailStok = () => {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{Object.keys(locationConfig).length}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Lokasi</div>
+              <div className="text-2xl font-bold text-purple-600">{viewMode === 'products' ? activeProducts : dalamProsesProducts.length}</div>
+              <div className="text-xs sm:text-sm text-gray-600">{viewMode === 'products' ? 'Di Toko' : 'Dalam Proses'}</div>
             </div>
           </div>
         </div>
@@ -579,23 +495,7 @@ const DetailStok = () => {
               </div>
             </div>
 
-            {/* Location Filter (only for products view) */}
-            {viewMode === 'products' && (
-              <div className="sm:w-48">
-                <select
-                  value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                >
-                  <option value="all">📍 Semua Lokasi</option>
-                  {Object.entries(locationConfig).map(([key, config]) => (
-                    <option key={key} value={key}>
-                      {config.icon} {config.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Location Filter - REMOVED: Location filtering disabled */}
           </div>
         </div>
 
@@ -640,7 +540,6 @@ const DetailStok = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {filteredProducts.length > 0 ? (
                   filteredProducts.map((product) => {
-                    const locationInfo = locationConfig[product.status] || locationConfig['TOKO'];
                     const isLowStock = product.count <= 5;
 
                     return (
@@ -651,16 +550,7 @@ const DetailStok = () => {
                             <h3 className="text-sm font-semibold text-gray-900 truncate pr-2">
                               {product.product_name}
                             </h3>
-                            <div className="flex items-center space-x-1">
-                              <div
-                                className="w-4 h-4 rounded border border-gray-30 flex-shrink-0"
-                                style={{ backgroundColor: Array.isArray(getSafeColors(product.color)) ? getSafeColors(product.color)[0].hex : product.color || '#3B82F6' }}
-                                title={`Warna: ${Array.isArray(getSafeColors(product.color)) ? getSafeColors(product.color)[0].hex : product.color || '#3B82F6'}`}
-                              />
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${locationInfo.color} flex-shrink-0`}>
-                                {locationInfo.icon}
-                              </span>
-                            </div>
+                            {/* Status icon removed - simplified display */}
                           </div>
                           <p className="text-xs text-gray-500">
                             QR: <span className="font-mono bg-gray-100 px-1 py-0.5 rounded text-xs">{product.qr_code}</span>
@@ -669,11 +559,13 @@ const DetailStok = () => {
 
                         {/* Product Body */}
                         <div className="p-4">
-                          {/* Status and Count */}
+                          {/* Status and Count - Simplified without location colors */}
                           <div className="flex items-center justify-between mb-3">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${locationInfo.color}`}>
-                              {locationInfo.label}
-                            </span>
+                            {product.status && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {product.status || 'No Status'}
+                              </span>
+                            )}
                             <span className={`text-sm font-semibold ${
                               isLowStock ? 'text-red-600' : 'text-green-600'
                             }`}>
@@ -722,7 +614,6 @@ const DetailStok = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {filteredDalamProsesProducts.length > 0 ? (
                   filteredDalamProsesProducts.map((product) => {
-                    const locationInfo = locationConfig[product.status] || locationConfig['TOKO'];
                     const isLowStock = product.count <= 5;
 
                     return (
@@ -734,12 +625,7 @@ const DetailStok = () => {
                               {product.product_name}
                             </h3>
                             <div className="flex items-center space-x-1">
-                              <div
-                                className="w-4 h-4 rounded border border-gray-30 flex-shrink-0"
-                                style={{ backgroundColor: Array.isArray(getSafeColors(product.color)) ? getSafeColors(product.color)[0].hex : product.color || '#3B82F6' }}
-                                title={`Warna: ${Array.isArray(getSafeColors(product.color)) ? getSafeColors(product.color)[0].hex : product.color || '#3B82F6'}`}
-                              />
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 flex-shrink-0">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 flex-shrink-0`}>
                                 🏭 DALAM PROSES
                               </span>
                             </div>
@@ -753,8 +639,8 @@ const DetailStok = () => {
                         <div className="p-4">
                           {/* Status and Count */}
                           <div className="flex items-center justify-between mb-3">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${locationInfo.color}`}>
-                              {locationInfo.label}
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Dalam Proses
                             </span>
                             <span className={`text-sm font-semibold ${
                               isLowStock ? 'text-red-600' : 'text-green-600'
@@ -814,11 +700,7 @@ const DetailStok = () => {
                               {product.product_name}
                             </h3>
                             <div className="flex items-center space-x-1">
-                              <div
-                                className="w-4 h-4 rounded border border-gray-30 flex-shrink-0 opacity-70"
-                                style={{ backgroundColor: Array.isArray(getSafeColors(product.color)) ? getSafeColors(product.color)[0].hex : product.color || '#3B82F6' }}
-                                title={`Warna: ${Array.isArray(getSafeColors(product.color)) ? getSafeColors(product.color)[0].hex : product.color || '#3B82F6'}`}
-                              />
+
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 flex-shrink-0">
                                 🛒 TERJUAL
                               </span>
@@ -896,11 +778,7 @@ const DetailStok = () => {
                               {template.product_name}
                             </h3>
                             <div className="flex items-center space-x-1">
-                              <div
-                                className="w-4 h-4 rounded border border-gray-30 flex-shrink-0"
-                                style={{ backgroundColor: template.color || '#3B82F6' }}
-                                title={`Warna: ${template.color || '#3B82F6'}`}
-                              />
+
                             </div>
                           </div>
                           <p className="text-xs text-gray-500">
@@ -965,20 +843,10 @@ const DetailStok = () => {
             <div className="relative p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
               <div className="mt-3">
                 <div className="flex justify-between items-start mb-6">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center">
                     <h3 className="text-lg font-medium text-gray-900">
                       Detail Stok: {selectedProductDetail.product_name}
                     </h3>
-                    <div className="flex items-center space-x-1">
-                      <div
-                        className="w-4 h-4 rounded border flex-shrink-0"
-                        style={{ backgroundColor: Array.isArray(getSafeColors(selectedProductDetail.color)) ? getSafeColors(selectedProductDetail.color)[0].hex : selectedProductDetail.color || '#3B82F6' }}
-                        title={`Warna: ${Array.isArray(getSafeColors(selectedProductDetail.color)) ? getSafeColors(selectedProductDetail.color)[0].hex : selectedProductDetail.color || '#3B82F6'}`}
-                      />
-                      <span className="text-xs text-gray-600">
-                        {Array.isArray(getSafeColors(selectedProductDetail.color)) ? getSafeColors(selectedProductDetail.color)[0].hex : selectedProductDetail.color || '#3B82F6'}
-                      </span>
-                    </div>
                   </div>
                   <button
                     onClick={handleCloseProductDetail}
@@ -1012,7 +880,7 @@ const DetailStok = () => {
 
                 {/* Stock Distribution by Status */}
                 <div className="mb-6">
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Distribusi Stok Berdasarkan Lokasi/Status</h4>
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Distribusi Stok Berdasarkan Status</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(
                       selectedProductDetail.items?.filter(item => item && item.status).reduce((acc, item) => {
@@ -1020,13 +888,12 @@ const DetailStok = () => {
                         return acc;
                       }, {}) || {}
                     ).map(([status, count]) => {
-                      const locationInfo = locationConfig[status] || locationConfig['TOKO'];
                       return (
                         <div key={status} className="bg-white border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center space-x-2">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${locationInfo.color}`}>
-                                {locationInfo.icon} {locationInfo.label}
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {status || 'Unknown'}
                               </span>
                             </div>
                             <span className="text-lg font-bold text-gray-900">{count}</span>
@@ -1040,48 +907,7 @@ const DetailStok = () => {
                   </div>
                 </div>
 
-                {/* Stock Distribution by Color */}
-                <div className="mb-6">
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Stok Berdasarkan Warna</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {(() => {
-                      const colors = getSafeColors(selectedProductDetail.color);
-                      // Distribute total stock evenly across colors (since we don't have per-color stock data)
-                      const totalStock = selectedProductDetail.count || 0;
-                      const stockPerColor = Math.floor(totalStock / colors.length);
-                      const remainder = totalStock % colors.length;
 
-                      return colors.map((color, index) => {
-                        const stock = stockPerColor + (index < remainder ? 1 : 0);
-                        const percentage = totalStock > 0 ? (stock / totalStock * 100).toFixed(1) : '0.0';
-
-                        return (
-                          <div key={`${color.hex || index}`} className="bg-white border rounded-lg p-4">
-                            <div className="flex items-center space-x-3">
-                              <div
-                                className="w-8 h-8 rounded border flex-shrink-0"
-                                style={{ backgroundColor: color.hex }}
-                                title={color.hex}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium text-gray-900 truncate">
-                                  {color.name || `Color ${index + 1}`}
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                  {color.hex}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-lg font-bold text-gray-900">{stock}</div>
-                                <div className="text-xs text-gray-600">{percentage}%</div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
 
                 {/* Individual Items List */}
                 <div className="mb-6">
@@ -1089,21 +915,15 @@ const DetailStok = () => {
                   <div className="bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
                     <div className="space-y-2">
                       {selectedProductDetail.items?.filter(item => item && item.id && item.status).map((item, index) => {
-                        const locationInfo = locationConfig[item.status] || locationConfig['TOKO'];
                         return (
                           <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-md border">
                             <div className="flex items-center space-x-3">
                               <span className="text-sm font-mono text-gray-500">#{index + 1}</span>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${locationInfo.color}`}>
-                                {locationInfo.icon} {locationInfo.label}
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {item.status || 'Unknown'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <div
-                                className="w-4 h-4 rounded"
-                                style={{ backgroundColor: getSafeColors(item.color)[0].hex }}
-                                title={`Warna: ${getSafeColors(item.color)[0].hex}`}
-                              />
                               <span className="text-xs font-mono text-gray-500">
                                 {item.qr_code.substring(0, 8)}...
                               </span>
@@ -1163,7 +983,7 @@ const DetailStok = () => {
                       value={dalamProsesForm.category}
                       onChange={(e) => handleDalamProsesCategoryChange(e.target.value)}
                       required
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md max-h-60 overflow-y-auto"
                     >
                       <option value="">Pilih kategori</option>
                       {categories.slice(1).map((category) => (
@@ -1198,36 +1018,21 @@ const DetailStok = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="dalamProsesColor" className="block text-sm font-medium text-gray-700 mb-1">
-                      Warna Produk
+                    <label htmlFor="dalamProsesCount" className="block text-sm font-medium text-gray-700 mb-1">
+                      Jumlah Item
                     </label>
-                    <div className="relative">
-                      <select
-                        id="dalamProsesColor"
-                        value={dalamProsesForm.color}
-                        onChange={(e) => handleDalamProsesInputChange('color', e.target.value)}
-                        required
-                        disabled={!dalamProsesAvailableColors.length}
-                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md disabled:bg-gray-100 disabled:text-gray-400"
-                      >
-                        <option value="">
-                          {!dalamProsesForm.product_name ? 'Pilih produk terlebih dahulu' : 'Pilih warna'}
-                        </option>
-                        {dalamProsesAvailableColors.map((color, index) => (
-                          <option key={color.hex || index} value={color.hex}>
-                            ◍ {color.name || `Warna ${index + 1}`} - {color.hex}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <div
-                          className="w-5 h-5 rounded border border-gray-300"
-                          style={{ backgroundColor: dalamProsesForm.color || '#f3f4f6' }}
-                          title={`Warna yang dipilih: ${dalamProsesForm.color || 'Belum dipilih'}`}
-                        />
-                      </div>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">Warna otomatis diisi dari template yang dipilih</p>
+                    <input
+                      id="dalamProsesCount"
+                      type="number"
+                      min="1"
+                      value={dalamProsesForm.count}
+                      onChange={(e) => handleDalamProsesInputChange('count', Math.max(1, parseInt(e.target.value) || 1))}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Jumlah item yang akan dibuat untuk proses produksi
+                    </p>
                   </div>
 
                   {error && (
@@ -1259,10 +1064,10 @@ const DetailStok = () => {
                         setDalamProsesForm({
                           category: '',
                           product_name: '',
-                          color: '#3B82F6'
+                          color: '#3B82F6',
+                          count: 1
                         });
                         setDalamProsesTemplateOptions([]);
-                        setDalamProsesAvailableColors([]);
                         setError('');
                       }}
                       className="inline-flex justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

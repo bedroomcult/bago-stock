@@ -13,6 +13,14 @@ const QuickScan = () => {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [qrToRegister, setQrToRegister] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [registrationFormData, setRegistrationFormData] = useState({
+    category: '',
+    product_name: '',
+    status: 'TOKO',
+    productNames: [],
+    count: 1
+  });
   const [batchMode, setBatchMode] = useState(false);
   const [batchInput, setBatchInput] = useState('');
   const [autoScanMode, setAutoScanMode] = useState(false);
@@ -29,6 +37,22 @@ const QuickScan = () => {
   const [showScanPopup, setShowScanPopup] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [scanningPaused, setScanningPaused] = useState(false);
+
+  // Detail modal states
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailProduct, setDetailProduct] = useState(null);
+
+  // Function to handle showing product detail
+  const handleShowProductDetail = (product) => {
+    setDetailProduct(product);
+    setShowDetailModal(true);
+  };
+
+  // Function to close product detail modal
+  const handleCloseProductDetail = () => {
+    setShowDetailModal(false);
+    setDetailProduct(null);
+  };
 
   // Global processing flag to prevent concurrent QR processing
   const isProcessingQrRef = useRef(false);
@@ -182,6 +206,135 @@ const QuickScan = () => {
 
   const closeRegistration = () => {
     setQrToRegister(null);
+    setRegistrationFormData({
+      category: '',
+      product_name: '',
+      status: 'TOKO',
+      productNames: [],
+      count: 1
+    });
+  };
+
+  const handleRegistrationFormChange = async (field, value) => {
+    if (field === 'category') {
+      // Clear product name when category changes
+      setRegistrationFormData(prev => ({
+        ...prev,
+        category: value,
+        product_name: '',
+        productNames: []
+      }));
+
+      // Fetch product names based on the selected category
+      if (value) {
+        try {
+          const response = await api.get(`/templates/by-category?category=${value}`);
+
+          if (response.data.success && response.data.data) {
+            setRegistrationFormData(prev => ({
+              ...prev,
+              productNames: response.data.data
+            }));
+          } else {
+            setError(response.data.message || 'Gagal mengambil nama produk');
+          }
+        } catch (err) {
+          console.warn('Error fetching templates:', err);
+          setError(err.response?.data?.message || 'Terjadi kesalahan saat mengambil nama produk');
+        }
+      }
+    } else {
+      setRegistrationFormData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
+  };
+
+  const handleRegistrationSubmit = async () => {
+    if (!registrationFormData.category || !registrationFormData.product_name) {
+      setError('Kategori dan nama produk harus diisi');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = {
+        action: 'register',
+        qr_code: qrToRegister,
+        category: registrationFormData.category,
+        product_name: registrationFormData.product_name,
+        status: registrationFormData.status
+      };
+
+      // For DALAM PROSES category, include count for bulk creation
+      if (registrationFormData.category === 'DALAM PROSES' && registrationFormData.count > 1) {
+        data.count = registrationFormData.count;
+      }
+
+      const response = await api.post('/products', data);
+
+      if (response.data.success) {
+        if (registrationFormData.category === 'DALAM PROSES' && registrationFormData.count > 1) {
+          setSuccessMessage(`${registrationFormData.count} produk DALAM PROSES berhasil didaftarkan`);
+        } else {
+          setSuccessMessage('Produk berhasil didaftarkan');
+        }
+        setTimeout(() => setSuccessMessage(''), 3000);
+        closeRegistration();
+      } else {
+        setError(response.data.message);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Terjadi kesalahan saat menyimpan produk');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditModal = (item) => {
+    setEditingItem(item);
+  };
+
+  const closeEditModal = () => {
+    setEditingItem(null);
+  };
+
+  const handleEditSubmit = async (formData) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await api.put('/products', {
+        id: editingItem.id,
+        product_name: formData.product_name,
+        category: formData.category,
+        status: formData.status
+      });
+
+      if (response.data.success) {
+        // Update the item in the scannedItems list
+        setScannedItems(prev =>
+          prev.map(item =>
+            item.id === editingItem.id
+              ? { ...item, ...formData }
+              : item
+          )
+        );
+
+        setSuccessMessage('Produk berhasil diperbarui');
+        setTimeout(() => setSuccessMessage(''), 3000);
+        closeEditModal();
+      } else {
+        setError(response.data.message);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Terjadi kesalahan saat memperbarui produk');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBatchScan = async () => {
@@ -822,7 +975,7 @@ const QuickScan = () => {
                           {item.isRegistered ? item.category : '-'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {item.isRegistered ? (
+                          {item.isRegistered && item.status ? (
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                               item.status === 'TOKO' ? 'bg-green-100 text-green-800' :
                               item.status === 'TERJUAL' ? 'bg-red-100 text-red-800' :
@@ -835,15 +988,42 @@ const QuickScan = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-right">
-                          <button
-                            onClick={() => removeItem(item.uuid)}
-                            className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
-                            title="Hapus dari daftar"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.136 21H7.864a2 2 0 01-1.997-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          <div className="flex justify-end space-x-2">
+                            {item.isRegistered && (
+                              <>
+                                {/* Detail button for products with status or category "DALAM PROSES" */}
+                                {(item.status === null || item.category === 'DALAM PROSES') && (
+                                  <button
+                                    onClick={() => handleShowProductDetail(item)}
+                                    className="text-green-600 hover:text-green-900 p-1 rounded-full hover:bg-green-50 transition-colors"
+                                    title="Detail produk"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openEditModal(item)}
+                                  className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-50 transition-colors"
+                                  title="Edit produk"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => removeItem(item.uuid)}
+                              className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition-colors"
+                              title="Hapus dari daftar"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.136 21H7.864a2 2 0 01-1.997-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -874,7 +1054,7 @@ const QuickScan = () => {
                   id="bulkStatus"
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md max-h-60 overflow-y-auto"
                 >
                   <option value="">Choose status...</option>
                   {statusOptions.map(status => (
@@ -1030,7 +1210,12 @@ const QuickScan = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Kategori Produk
                   </label>
-                  <select className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                  <select
+                    value={registrationFormData.category}
+                    onChange={(e) => handleRegistrationFormChange('category', e.target.value)}
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md max-h-60 overflow-y-auto"
+                  >
+                    <option value="">Pilih kategori...</option>
                     <option>Sofa</option>
                     <option>Kursi</option>
                     <option>Meja</option>
@@ -1044,22 +1229,61 @@ const QuickScan = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nama Produk
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Masukkan nama produk"
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
+                  <select
+                    value={registrationFormData.product_name}
+                    onChange={(e) => handleRegistrationFormChange('product_name', e.target.value)}
+                    disabled={!registrationFormData.category}
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md max-h-60 overflow-y-auto disabled:bg-gray-50 disabled:text-gray-500"
+                  >
+                    <option value="">
+                      {registrationFormData.category ? 'Pilih nama produk...' : 'Pilih kategori terlebih dahulu'}
+                    </option>
+                    {registrationFormData.productNames.map((template) => (
+                      <option key={template.product_name} value={template.product_name}>
+                        {template.product_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {registrationFormData.category === 'DALAM PROSES' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Jumlah Item
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={registrationFormData.count}
+                      onChange={(e) => handleRegistrationFormChange('count', Math.max(1, parseInt(e.target.value) || 1))}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Jumlah item yang akan dibuat untuk proses produksi
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
-                  <select className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                    <option>TOKO</option>
-                    <option>GUDANG KEPATHIAN</option>
-                    <option>GUDANG NGUNUT</option>
-                    <option>TERJUAL</option>
+                  <select
+                    value={registrationFormData.status}
+                    onChange={(e) => handleRegistrationFormChange('status', e.target.value)}
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md max-h-60 overflow-y-auto"
+                  >
+                    {registrationFormData.category === 'DALAM PROSES' ? (
+                      <option value={null}>DALAM PROSES</option>
+                    ) : (
+                      <>
+                        <option>TOKO</option>
+                        <option>GUDANG KEPATHIAN</option>
+                        <option>GUDANG NGUNUT</option>
+                        <option>TERJUAL</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </form>
@@ -1068,16 +1292,109 @@ const QuickScan = () => {
                 <button
                   onClick={closeRegistration}
                   className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  disabled={loading}
                 >
                   Batal
                 </button>
-                <button className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                  Daftarkan
+                <button
+                  onClick={handleRegistrationSubmit}
+                  disabled={loading || !registrationFormData.category || !registrationFormData.product_name}
+                  className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+                >
+                  {loading ? 'Memproses...' : 'Daftarkan'}
                 </button>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Product Detail Modal */}
+      {showDetailModal && detailProduct && (
+        <Modal
+          isOpen={showDetailModal}
+          onClose={handleCloseProductDetail}
+          title={`Detail Produk: ${detailProduct.product_name}`}
+          size="lg"
+          showCloseButton={true}
+        >
+          <div className="space-y-6">
+            {/* Product Summary */}
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{detailProduct.id || 'N/A'}</div>
+                  <div className="text-xs text-gray-600">ID Produk</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-800">{detailProduct.category}</div>
+                  <div className="text-xs text-gray-600">Kategori</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {detailProduct.qr_code || detailProduct.uuid}
+                  </div>
+                  <div className="text-xs text-gray-600">QR Code</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {detailProduct.status === null ? 'DALAM PROSES' : detailProduct.status}
+                  </div>
+                  <div className="text-xs text-gray-600">Status</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Manufacturing Process Info */}
+            {(detailProduct.category === 'DALAM PROSES' || detailProduct.status === null) && (
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-purple-900 mb-3">🏭 Informasi Proses Produksi</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-purple-800">
+                      <strong>Kondisi:</strong> Dalam proses produksi
+                    </p>
+                    {detailProduct.count && (
+                      <p className="text-sm text-purple-800 mt-1">
+                        <strong>Jumlah:</strong> {detailProduct.count} item
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm text-purple-800">
+                      <strong>Tanggal Dibuat:</strong> {new Date(detailProduct.created_at || Date.now()).toLocaleDateString('id-ID')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Metadata Information */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="text-lg font-medium text-gray-900 mb-3">📋 Informasi Tambahan</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p><strong>QR Code:</strong> {detailProduct.qr_code || detailProduct.uuid}</p>
+                  <p><strong>Nama:</strong> {detailProduct.product_name}</p>
+                </div>
+                <div>
+                  <p><strong>Kategori:</strong> {detailProduct.category}</p>
+                  <p><strong>Status:</strong> {detailProduct.status === null ? 'DALAM PROSES' : detailProduct.status}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <button
+                onClick={handleCloseProductDetail}
+                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

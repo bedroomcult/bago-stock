@@ -43,7 +43,6 @@ router.get('/empty-stock', requireAuth, async (req, res) => {
         id,
         category,
         product_name,
-        color,
         is_active,
         created_at
       `)
@@ -135,7 +134,7 @@ router.get('/by-category', requireAuthOptional, async (req, res) => {
 
     const { data, error } = await supabase
       .from('product_templates')
-      .select('category, product_name, color')
+      .select('category, product_name')
       .eq('category', category)
       .eq('is_active', true)
       .order('product_name', { ascending: true });
@@ -182,7 +181,7 @@ router.get('/by-category', requireAuthOptional, async (req, res) => {
 router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { category, product_name, color = '#3B82F6', is_active = true } = req.body;
+    const { category, product_name, is_active = true } = req.body;
 
     if (!category || !product_name) {
       return res.status(400).json({
@@ -211,7 +210,6 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
       .insert([{
         category,
         product_name,
-        color,
         is_active,
         created_by: req.session.userId
       }])
@@ -280,7 +278,6 @@ router.put('/', requireAuth, requireRole('admin'), async (req, res) => {
     const updateData = {};
     if (category) updateData.category = category;
     if (product_name) updateData.product_name = product_name;
-    if (req.body.color !== undefined) updateData.color = req.body.color;
     if (is_active !== undefined) updateData.is_active = is_active;
 
     const { data, error } = await supabase

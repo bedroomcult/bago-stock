@@ -13,7 +13,6 @@ const TemplateManagement = () => {
   const [formData, setFormData] = useState({
     category: '',
     product_name: '',
-    colors: [{ name: 'Default', hex: '#3B82F6' }],
     is_active: true
   });
   const [error, setError] = useState('');
@@ -96,7 +95,7 @@ const TemplateManagement = () => {
         fetchTemplates();
         setFormVisible(false);
         setEditingTemplate(null);
-        setFormData({ category: '', product_name: '', colors: [{ name: 'Default', hex: '#3B82F6' }], is_active: true });
+        setFormData({ category: '', product_name: '', is_active: true });
         alert(editingTemplate ? 'Template berhasil diperbarui' : 'Template berhasil ditambahkan');
       } else {
         setError(response.data.message);
@@ -129,7 +128,7 @@ const TemplateManagement = () => {
 
   const handleNewTemplate = () => {
     setEditingTemplate(null);
-    setFormData({ category: '', product_name: '', colors: [{ name: 'Default', hex: '#3B82F6' }], is_active: true });
+    setFormData({ category: '', product_name: '', is_active: true });
     setFormVisible(true);
   };
 
@@ -140,80 +139,13 @@ const TemplateManagement = () => {
     }));
   };
 
-  // Color management functions
-  const addColor = () => {
-    setFormData(prev => ({
-      ...prev,
-      colors: [...prev.colors, { name: `Color ${prev.colors.length + 1}`, hex: '#3B82F6' }]
-    }));
-  };
-
-  const removeColor = (index) => {
-    if (formData.colors.length <= 1) return; // Keep at least one color
-    setFormData(prev => ({
-      ...prev,
-      colors: prev.colors.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateColor = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      colors: prev.colors.map((color, i) =>
-        i === index ? { ...color, [field]: value } : color
-      )
-    }));
-  };
-
-  // Handle colors array initialization from template data
+  // Handle template editing
   const handleEdit = (template) => {
     setEditingTemplate(template);
-
-    // Parse colors data the same way as display logic
-    let colorsArray = [];
-    try {
-      // New schema: colors JSONB field
-      if (typeof template.colors === 'string') {
-        colorsArray = JSON.parse(template.colors);
-      } else if (Array.isArray(template.colors)) {
-        colorsArray = template.colors;
-      }
-      // If colors field not found or empty, check old color field
-      else if (!Array.isArray(colorsArray) || colorsArray.length === 0) {
-        // Old schema: color field might be an array (migrated data)
-        if (Array.isArray(template.color)) {
-          colorsArray = template.color;
-        }
-        // Old schema: color field might be a string (single color)
-        else if (typeof template.color === 'string') {
-          colorsArray = [{ name: 'Default', hex: template.color }];
-        }
-      }
-    } catch (e) {
-      colorsArray = [];
-    }
-
-    // Final fallback if still no colors
-    if (!Array.isArray(colorsArray) || colorsArray.length === 0) {
-      colorsArray = [{ name: 'Default', hex: '#3B82F6' }];
-    }
-
     setFormData({
       category: template.category,
       product_name: template.product_name,
-      colors: colorsArray,
       is_active: template.is_active
-    });
-    setFormVisible(true);
-  };
-
-  const handleNewUser = () => {
-    setEditingTemplate(null);
-    setFormData({
-      category: '',
-      product_name: '',
-      colors: [{ name: 'Default', hex: '#3B82F6' }],
-      is_active: true
     });
     setFormVisible(true);
   };
@@ -298,8 +230,12 @@ const TemplateManagement = () => {
                     >
                       Nama Produk{getSortArrow('product_name')}
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Warna
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                      onClick={() => handleSort('created_at')}
+                    >
+                      Dibuat{getSortArrow('created_at')}
                     </th>
                     <th
                       scope="col"
@@ -315,39 +251,6 @@ const TemplateManagement = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredTemplates.map((template) => {
-                    console.log('Template colors data:', JSON.stringify(template.colors));
-
-                    // Handle colors display - handle new schema (colors JSONB) and old schema (color array/string)
-                    let colorsArray = [];
-                    try {
-                      // New schema: colors JSONB field
-                      if (typeof template.colors === 'string') {
-                        colorsArray = JSON.parse(template.colors);
-                      } else if (Array.isArray(template.colors)) {
-                        colorsArray = template.colors;
-                      }
-                      // If colors field not found or empty, check old color field
-                      else if (!Array.isArray(colorsArray) || colorsArray.length === 0) {
-                        // Old schema: color field might be an array (migrated data)
-                        if (Array.isArray(template.color)) {
-                          colorsArray = template.color;
-                        }
-                        // Old schema: color field might be a string (single color)
-                        else if (typeof template.color === 'string') {
-                          colorsArray = [{ name: 'Default', hex: template.color }];
-                        }
-                      }
-                    } catch (e) {
-                      colorsArray = [];
-                    }
-
-                    // Final fallback if still no colors
-                    if (!Array.isArray(colorsArray) || colorsArray.length === 0) {
-                      colorsArray = [{ name: 'Default', hex: '#3B82F6' }];
-                    }
-
-                    const displayColors = colorsArray.slice(0, 4); // Show max 4 colors
-                    const remainingCount = colorsArray.length - 4;
 
                     return (
                       <tr key={template.id} className="hover:bg-gray-50">
@@ -357,27 +260,8 @@ const TemplateManagement = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {template.product_name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center space-x-1">
-                            {displayColors.map((color, index) => (
-                              <div
-                                key={index}
-                                className="w-5 h-5 rounded border border-gray-200 flex-shrink-0"
-                                style={{ backgroundColor: color.hex }}
-                                title={color.name}
-                              />
-                            ))}
-                            {remainingCount > 0 && (
-                              <span className="text-xs text-gray-500 ml-1">
-                                +{remainingCount} more
-                              </span>
-                            )}
-                            {colorsArray.length > 1 && (
-                              <span className="text-xs text-gray-600 ml-2">
-                                {colorsArray.length} colors
-                              </span>
-                            )}
-                          </div>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {template.created_at ? new Date(template.created_at).toLocaleDateString('id-ID') : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -459,70 +343,7 @@ const TemplateManagement = () => {
                     />
                   </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Pilihan Warna Produk
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addColor}
-                        className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
-                      >
-                        + Tambah Warna
-                      </button>
-                    </div>
 
-                    <div className="space-y-3 max-h-60 overflow-y-auto">
-                      {formData.colors.map((color, index) => (
-                        <div key={index} className="flex items-center space-x-3 p-3 border rounded-md bg-gray-50">
-                          <div className="flex items-center space-x-2 flex-1">
-                            <input
-                              type="color"
-                              value={color.hex}
-                              onChange={(e) => updateColor(index, 'hex', e.target.value)}
-                              className="h-8 w-12 border border-gray-300 rounded cursor-pointer"
-                              title={`Pilih warna untuk ${color.name}`}
-                            />
-                            <input
-                              type="text"
-                              value={color.name}
-                              onChange={(e) => updateColor(index, 'name', e.target.value)}
-                              placeholder="Nama warna"
-                              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                            />
-                            <input
-                              type="text"
-                              value={color.hex}
-                              onChange={(e) => updateColor(index, 'hex', e.target.value)}
-                              placeholder="#3B82F6"
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm font-mono"
-                              title="Kode warna hex"
-                            />
-                            <div
-                              className="w-8 h-8 rounded border border-gray-300"
-                              style={{ backgroundColor: color.hex }}
-                              title="Pratinjau warna"
-                            />
-                          </div>
-                          {formData.colors.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeColor(index)}
-                              className="text-red-500 hover:text-red-700 text-lg"
-                              title="Hapus warna ini"
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <p className="mt-2 text-xs text-gray-500">
-                      Pilihan warna ini akan ditampilkan di SingleScan untuk dipilih saat mendaftarkan produk
-                    </p>
-                  </div>
 
                   <div className="flex items-center">
                     <input
@@ -565,7 +386,7 @@ const TemplateManagement = () => {
                       onClick={() => {
                         setFormVisible(false);
                         setEditingTemplate(null);
-                        setFormData({ category: '', product_name: '', colors: [{ name: 'Default', hex: '#3B82F6' }], is_active: true });
+                        setFormData({ category: '', product_name: '', is_active: true });
                       }}
                       className="inline-flex justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >

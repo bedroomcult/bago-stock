@@ -28,7 +28,7 @@ const FormSelect = ({
           onChange={onChange}
           required={required}
           disabled={disabled}
-          className={`block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed appearance-none transition-colors ${
+          className={`block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed appearance-none transition-colors max-h-60 overflow-y-auto ${
             error ? 'border-red-300 focus:border-red-500' : ''
           }`}
           {...props}

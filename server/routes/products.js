@@ -40,7 +40,7 @@ router.get('/dalam-proses', requireAuth, async (req, res) => {
 
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, qr_code, category, product_name, color, status, dalam_proses, created_at, updated_at')
+      .select('id, qr_code, category, product_name, status, dalam_proses, created_at, updated_at')
       .eq('dalam_proses', true)
       .order('updated_at', { ascending: false });
 
@@ -57,7 +57,6 @@ router.get('/dalam-proses', requireAuth, async (req, res) => {
           qr_code: product.qr_code,
           product_name: product.product_name,
           category: product.category,
-          color: product.color || '#3B82F6',
           status: product.status,
           count: 1,
           last_updated: product.updated_at,
@@ -101,7 +100,7 @@ router.get('/detail', requireAuth, async (req, res) => {
 
     let query = supabase
       .from('products')
-      .select('id, qr_code, category, product_name, color, status, dalam_proses, created_at, updated_at')
+      .select('id, qr_code, category, product_name, status, dalam_proses, created_at, updated_at')
       .eq('dalam_proses', false) // Exclude products in manufacturing process
       .order('updated_at', { ascending: false });
 
@@ -132,7 +131,6 @@ router.get('/detail', requireAuth, async (req, res) => {
           qr_code: product.qr_code,
           product_name: product.product_name,
           category: product.category,
-          color: product.color || '#3B82F6', // Include color in grouped details
           status: product.status,
           count: 1,
           last_updated: product.updated_at,
@@ -224,7 +222,7 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { action, qr_code, category, product_name, status = 'TOKO' } = req.body;
+    const { action, qr_code, category, product_name, status = 'TOKO', count = 1 } = req.body;
 
     if (action !== 'register' && action !== 'create-dalam-proses') {
       return res.status(400).json({
@@ -311,7 +309,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     const { data: template, error: templateError } = await supabase
       .from('product_templates')
-      .select('id, color')
+      .select('id')
       .eq('category', category)
       .eq('product_name', product_name)
       .eq('is_active', true)
@@ -326,24 +324,29 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    // Get the color from template (use color value as-is since it's stored as plain text in database)
-    const color = template.color || '#3B82F6';
 
-    // Insert the new product
-    const { data, error } = await supabase
-      .from('products')
-      .insert([{
+
+    // Create products to insert - for dalam-proses, create multiple identical products based on count
+    const productsToInsert = [];
+    const productCount = isDalamProses ? Math.max(1, parseInt(count) || 1) : 1;
+
+    for (let i = 0; i < productCount; i++) {
+      productsToInsert.push({
         qr_code: isDalamProses ? null : qr_code, // QR code is null for dalam-proses
         category,
         product_name,
-        color: color,
         status,
         dalam_proses: isDalamProses, // Set dalam_proses flag
         registered_by: req.session.userId,
         updated_by: req.session.userId
-      }])
-      .select()
-      .single();
+      });
+    }
+
+    // Insert the new products
+    const { data, error } = await supabase
+      .from('products')
+      .insert(productsToInsert)
+      .select();
 
     if (error) {
       throw error;
@@ -366,23 +369,29 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    // Log the activity
+    // Log the activity for each created product
+    const activityLogs = data.map(product => ({
+      user_id: req.session.userId,
+      action: isDalamProses ? (productCount > 1 ? 'CREATE_DALAM_PROSES_PRODUCTS' : 'CREATE_DALAM_PROSES_PRODUCT') : 'REGISTER_PRODUCT',
+      table_name: 'products',
+      record_id: product.id,
+      new_values: JSON.stringify(product),
+      old_values: null,
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent')
+    }));
+
     await supabase
       .from('activity_logs')
-      .insert([{
-        user_id: req.session.userId,
-        action: isDalamProses ? 'CREATE_DALAM_PROSES_PRODUCT' : 'REGISTER_PRODUCT',
-        table_name: 'products',
-        record_id: data.id,
-        new_values: JSON.stringify(data),
-        old_values: null,
-        ip_address: req.ip,
-        user_agent: req.get('User-Agent')
-      }]);
+      .insert(activityLogs);
 
     res.json({
       success: true,
-      message: isDalamProses ? 'Product dalam proses produksi berhasil dibuat' : 'Product registered successfully',
+      message: isDalamProses
+        ? (productCount > 1
+            ? `${productCount} produk dalam proses produksi berhasil dibuat`
+            : 'Product dalam proses produksi berhasil dibuat')
+        : 'Product registered successfully',
       data
     });
   } catch (error) {
@@ -425,7 +434,6 @@ router.put('/', requireAuth, async (req, res) => {
     const updateData = {};
     if (category) updateData.category = category;
     if (product_name) updateData.product_name = product_name;
-    if (req.body.color) updateData.color = req.body.color;
     if (status) updateData.status = status;
     if (dalam_proses !== undefined) updateData.dalam_proses = dalam_proses;
     updateData.updated_by = req.session.userId;
