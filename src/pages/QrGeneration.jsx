@@ -1,6 +1,7 @@
  // src/pages/QrGeneration.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import Toast from '../components/ui/Toast';
 
 const QrGeneration = () => {
   const [count, setCount] = useState(1);
@@ -9,6 +10,9 @@ const QrGeneration = () => {
   const [error, setError] = useState('');
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
 
   useEffect(() => {
     fetchStats();
@@ -85,7 +89,10 @@ const QrGeneration = () => {
       // Clean up
       window.URL.revokeObjectURL(url);
 
-      alert(`${count} kode QR berhasil dibuat dan di-download dalam format ${format.toUpperCase()}`);
+      // Show success toast
+      setToastMessage(`${count} kode QR berhasil dibuat dan di-download dalam format ${format.toUpperCase()}`);
+      setToastType('success');
+      setShowToast(true);
 
     } catch (err) {
       console.error('QR generation error:', err);
@@ -268,6 +275,14 @@ const QrGeneration = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showToast && (
+        <Toast
+          type={toastType}
+          message={toastMessage}
+          onClose={() => setShowToast(false)}
+        />
       )}
     </div>
   );

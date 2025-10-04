@@ -67,7 +67,7 @@ const Toast = ({
   if (!message) return null;
 
   return (
-    <div className={`fixed top-4 right-4 z-50 ${bg} text-white px-4 py-3 rounded-lg shadow-lg border ${border} flex items-center space-x-3 animate-bounce max-w-md`}>
+    <div className={`fixed top-4 right-4 z-50 ${bg} text-white px-4 py-3 rounded-lg shadow-lg border ${border} flex items-center space-x-3 max-w-md`}>
       {icon}
       <span className="font-medium flex-1">{message}</span>
       <button

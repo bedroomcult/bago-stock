@@ -35,6 +35,7 @@ const DetailStok = () => {
   const [productCounts, setProductCounts] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [soldProducts, setSoldProducts] = useState([]);
+  const [dalamProsesProducts, setDalamProsesProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [filteredSoldProducts, setFilteredSoldProducts] = useState([]);
   const [filteredDalamProsesProducts, setFilteredDalamProsesProducts] = useState([]);
@@ -105,6 +106,7 @@ const DetailStok = () => {
     fetchCategories();
     fetchStatuses();
     fetchAllProducts();
+    fetchDalamProsesProducts(); // Fetch dalam proses products
     fetchEmptyStockTemplates(); // Fetch empty stock templates
   }, []);
 
@@ -198,6 +200,23 @@ const DetailStok = () => {
     }
   };
 
+  // Function to fetch dalam proses products using the dedicated API endpoint
+  const fetchDalamProsesProducts = async () => {
+    try {
+      const response = await api.get('/products/dalam-proses');
+      if (response.data.success) {
+        console.log('🏭 Dalam proses products loaded:', response.data.data);
+        setDalamProsesProducts(response.data.data);
+      } else {
+        console.error('❌ Failed to fetch dalam proses products:', response.data.message);
+        setDalamProsesProducts([]);
+      }
+    } catch (error) {
+      console.error('🚨 Error fetching dalam proses products:', error);
+      setDalamProsesProducts([]);
+    }
+  };
+
   // Filter products and sold items based on view mode, search, location, and category
   useEffect(() => {
     // Filter active products
@@ -237,8 +256,8 @@ const DetailStok = () => {
       filteredSold = filteredSold.filter(product => product.category === selectedCategory);
     }
 
-    // Filter manufacturing process products
-    let filteredDalamProses = allProducts.filter(product => product.dalam_proses);
+    // Filter manufacturing process products from the dedicated API
+    let filteredDalamProses = dalamProsesProducts;
 
     // Filter by search term
     if (searchTerm) {
@@ -261,7 +280,7 @@ const DetailStok = () => {
     setFilteredProducts(filteredActive);
     setFilteredSoldProducts(filteredSold);
     setFilteredDalamProsesProducts(filteredDalamProses);
-  }, [allProducts, soldProducts, searchTerm, selectedLocation, selectedCategory]);
+  }, [allProducts, soldProducts, dalamProsesProducts, searchTerm, selectedLocation, selectedCategory]);
 
   const handleCategoryClick = (category) => {
     setSelectedCategory(category);
@@ -279,9 +298,7 @@ const DetailStok = () => {
   const activeProducts = filteredProducts.filter(p => p.status === 'TOKO').length;
   const emptyStockCount = emptyStockTemplates.length;
 
-  const dalamProsesProductsCount = allProducts
-    .filter(p => p.dalam_proses)
-    .reduce((sum, product) => sum + product.count, 0);
+  const dalamProsesProductsCount = dalamProsesProducts.reduce((sum, product) => sum + product.count, 0);
 
   // Product detail popup state
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -359,7 +376,6 @@ const DetailStok = () => {
       });
 
       if (response.data.success) {
-        alert('Produk dalam proses produksi berhasil ditambahkan');
         setShowDalamProsesModal(false);
         setDalamProsesForm({
           category: '',
@@ -367,6 +383,7 @@ const DetailStok = () => {
           color: '#3B82F6'
         });
         fetchAllProducts(); // Refresh the products list
+        fetchDalamProsesProducts(); // Refresh dalam proses products
       } else {
         setError(response.data.message);
       }

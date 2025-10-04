@@ -1,6 +1,7 @@
 // src/pages/UserManagement.jsx
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import Toast from '../components/ui/Toast';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -28,6 +29,9 @@ const UserManagement = () => {
     staff: 0
   });
   const [error, setError] = useState('');
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
 
   const roles = [
     { value: 'admin', label: 'Admin' },
@@ -134,7 +138,9 @@ const UserManagement = () => {
           full_name: '',
           is_active: true
         });
-        alert(editingUser ? 'User berhasil diperbarui' : 'User berhasil ditambahkan');
+        setToastMessage(editingUser ? 'User berhasil diperbarui' : 'User berhasil ditambahkan');
+        setToastType('success');
+        setShowToast(true);
       } else {
         setError(response.data.message);
       }
@@ -156,15 +162,13 @@ const UserManagement = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) {
-      return;
-    }
-
     try {
       const response = await api.delete(`/users/${id}`);
       if (response.data.success) {
         fetchUsers();
-        alert('User berhasil dihapus');
+        setToastMessage('User berhasil dihapus');
+        setToastType('success');
+        setShowToast(true);
       } else {
         setError(response.data.message);
       }
@@ -219,7 +223,9 @@ const UserManagement = () => {
       if (response.data.success) {
         setShowChangePasswordModal(false);
         setSelectedUserForPasswordChange(null);
-        alert('Password berhasil diubah');
+        setToastMessage('Password berhasil diubah');
+        setToastType('success');
+        setShowToast(true);
       } else {
         setError(response.data.message);
       }
@@ -236,7 +242,9 @@ const UserManagement = () => {
 
       if (response.data.success) {
         fetchUsers();
-        alert(`User ${user.is_active ? 'dinonaktifkan' : 'diaktifkan'} berhasil`);
+        setToastMessage(`User ${user.is_active ? 'dinonaktifkan' : 'diaktifkan'} berhasil`);
+        setToastType('success');
+        setShowToast(true);
       } else {
         setError(response.data.message);
       }
@@ -691,6 +699,14 @@ const UserManagement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showToast && (
+        <Toast
+          type={toastType}
+          message={toastMessage}
+          onClose={() => setShowToast(false)}
+        />
       )}
     </div>
   );

@@ -174,23 +174,16 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
         const doc = new PDFDocument({
-          size: 'A4',
-          margin: 50
+          size: [170, 227], // 6cm x 8cm custom size (converted to points)
+          margin: 14 // 0.5 cm margins to fit QR codes properly
         });
 
         doc.pipe(res);
 
-        // Add title page
-        doc.fontSize(24).text('Generated QR Codes', { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(14).text(`Range: ${startCode} to ${endCode}`, { align: 'center' });
-        doc.fontSize(12).text(`Total: ${count} codes`, { align: 'center' });
-        doc.moveDown(2);
-
         const pageWidth = doc.page.width;
         const pageHeight = doc.page.height;
-        const margin = 50;
-        const qrSize = 350; // Large QR code for single page layout
+        const margin = 14; // 0.5 cm margins (adjusted for 6x7cm paper size)
+        const qrSize = 142; // 5x5 cm QR codes (approximately)
 
         // Create one page per QR code
         for (let i = 0; i < generatedQrs.length; i++) {
@@ -210,9 +203,17 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
               errorCorrectionLevel: 'M'
             });
 
-            // Center the QR code on the page
-            const qrX = (pageWidth - qrSize) / 2; // Center horizontally
-            const qrY = (pageHeight - qrSize - 100) / 2 + 50; // Center vertically, with space for text
+            // Calculate dimensions for centering QR code + text as a group
+            const textSpacing = 20; // Space between QR and text
+            const textHeight = 14; // Estimated height for 12pt font
+            const totalContentHeight = qrSize + textSpacing + textHeight; // ~176 points
+
+            // Center the entire QR + text group vertically on the page
+            const groupY = (pageHeight - totalContentHeight) / 2;
+
+            // Position QR code and text horizontally centered
+            const qrX = (pageWidth - qrSize) / 2;
+            const qrY = groupY + 10; // Small top margin from group start
 
             // Add QR code image (centered)
             doc.image(qrBuffer, qrX, qrY, {
@@ -220,16 +221,10 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
               height: qrSize
             });
 
-            // Add QR code text below the QR code (centered, large, readable)
-            doc.fontSize(16).font('Helvetica-Bold');
-            doc.text(qr.qr_code, qrX, qrY + qrSize + 30, {
+            // Add QR code text below the QR code (centered, compact, readable)
+            doc.fontSize(12).font('Helvetica-Bold');
+            doc.text(qr.qr_code, qrX, qrY + qrSize + textSpacing, {
               width: qrSize,
-              align: 'center'
-            });
-
-            // Add page number (bottom)
-            doc.fontSize(10).font('Helvetica');
-            doc.text(`Page ${i + 1} of ${generatedQrs.length}`, 0, pageHeight - 50, {
               align: 'center'
             });
 
