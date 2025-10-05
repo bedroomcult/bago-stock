@@ -22,13 +22,32 @@ const SingleScan = () => {
   const [existingProduct, setExistingProduct] = useState(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [toast, setToast] = useState(null);
-  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
   const navigate = useNavigate();
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const processingRef = useRef(false); // Prevent race conditions in QR processing
 
   // Check if any dialog is open that should block main input interactions
   const isInputBlocked = photoScanning || showEditConfirm || showConfirmDialog;
+
+  // Ref-based QR processing - race-condition free
+  const processQR = async (qrValue) => {
+    if (processingRef.current || loading) return; // Prevent duplicate processing
+
+    processingRef.current = true;
+    setQrCode(qrValue);
+
+    // Show user feedback immediately
+    showToast('✅ QR Code terdeteksi! Memproses...', 'info');
+
+    try {
+      await handleScan();
+    } catch (err) {
+      console.error('Auto-scan failed:', err);
+    } finally {
+      processingRef.current = false;
+    }
+  };
 
   // Mock categories from the requirements with DALAM PROSES
   const categories = ['Sofa', 'Kursi', 'Meja', 'Sungkai', 'Nakas', 'Buffet', 'DALAM PROSES'];
@@ -86,7 +105,6 @@ const SingleScan = () => {
       setError(err.response?.data?.message || 'Terjadi kesalahan saat memindai');
     } finally {
       setLoading(false);
-      setIsAutoProcessing(false); // Reset flag after processing completes
     }
   };
 
@@ -238,31 +256,16 @@ const SingleScan = () => {
     try {
       setPhotoScanning(true);
       const result = await QrScanner.scanImage(file);
-      setQrCode(result);
       setPhotoScanning(false);
-      // Auto-processing will be handled by useEffect
+      // Process QR immediately with race-condition protection
+      await processQR(result);
     } catch (error) {
       setPhotoScanning(false);
       setError('QR Code tidak ditemukan dalam gambar');
     }
   };
 
-  // Auto-scan useEffect - triggers handleScan when qrCode changes (from scanner)
-  useEffect(() => {
-    let timer;
-    if (qrCode && !loading && !isAutoProcessing) {
-      setIsAutoProcessing(true);
-      // Small delay to ensure state is stable and prevent immediate processing
-      timer = setTimeout(() => {
-        handleScan();
-      }, 300);
-    }
 
-    // Cleanup: clear timer on unmount or dependency change
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [qrCode, loading]); // Removed isAutoProcessing from deps to avoid re-triggering
 
   useEffect(() => {
     let scanner = null;
@@ -271,14 +274,13 @@ const SingleScan = () => {
     if (photoScanning && webcamRef.current) {
       scanner = new QrScanner(
         webcamRef.current.video,
-        (result) => {
-          if (processed) return; // Skip if already processed
+        async (result) => {
+          if (processed) return; // Skip if already processed this scan session
           processed = true; // Lock processing
 
-          // Set QR code value
-          setQrCode(result.data);
           setPhotoScanning(false); // Close modal immediately
-          // Auto-processing will be handled by the qrCode useEffect
+          // Process QR immediately with race-condition protection
+          await processQR(result.data);
         },
         {
           highlightScanRegion: true,
